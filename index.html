@@ -271,7 +271,7 @@ async function buscar(){
 }
 async function init(){
   try{
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/qualifications?select=id,score,tier,matched_areas,created_at,opportunities(title,url,deadline,created_at,sources(name))&order=score.desc`,core.desc`,{headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}});
+   const r=await fetch(`${SUPABASE_URL}/rest/v1/qualifications?select=id,score,tier,matched_areas,created_at,opportunities(title,url,deadline,created_at,sources(name))&order=score.desc`,{headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}});
     if(r.ok){const json=await r.json();if(json&&json.length>0){todos=json.map(q=>({title:q.opportunities?.title||'Sem título',source:q.opportunities?.sources?.name||'—',tier:q.tier,score:q.score,deadline:q.opportunities?.deadline||null,areas:q.matched_areas||[],url:q.opportunities?.url||null,created_at:q.created_at}));}}
   }catch(e){}
   renderStats();renderLista();
