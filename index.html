@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Radar de Oportunidades — Santa Casa BH</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--font-sans:system-ui,-apple-system,sans-serif}
+body{font-family:var(--font-sans);background:#f1efe8;min-height:100vh;padding:20px}
+@media(max-width:500px){body{padding:0}}
+.radar{--bg:#f8f7f4;--bg3:#f1efe8;--border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.18);--txt:#1a1a1a;--txt2:#6b6b6b;--txt3:#9e9e9e;--roxo:#6B2D8B;--roxo2:#4A1F61;--roxo-light:#EDE7F6;--roxo-mid:#9C6BB5;--card-bg:#ffffff;max-width:820px;margin:0 auto;border-radius:16px;overflow:hidden;border:0.5px solid var(--border);box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+@media(max-width:500px){.radar{border-radius:0;box-shadow:none}}
+.radar.dark{--bg:#1a1520;--bg3:#2d2638;--border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);--txt:#f0ecf5;--txt2:#b39dcc;--txt3:#7a6a8a;--roxo:#9C6BB5;--roxo2:#B085CC;--roxo-light:#2d1f3d;--roxo-mid:#7B4FA0;--card-bg:#231d2c}
+.header{background:#6B2D8B;padding:18px 22px;display:flex;align-items:center;justify-content:space-between}
+.radar.dark .header{background:#2d1f3d}
+.header-logo{display:flex;align-items:center;gap:10px}
+.logo-box{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:18px}
+.header-name{color:#fff;font-size:16px;font-weight:500}
+.header-sub{color:rgba(255,255,255,0.65);font-size:11px;margin-top:1px}
+.header-right{display:flex;align-items:center;gap:8px}
+.live-badge{background:rgba(255,255,255,0.15);color:#fff;font-size:11px;padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:4px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#4ade80}
+.mode-btn{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.15);border:0.5px solid rgba(255,255,255,0.25);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mode-btn:hover{background:rgba(255,255,255,0.25)}
+.content{padding:18px 22px;background:var(--bg)}
+@media(max-width:500px){.content{padding:12px 14px}}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+.stat{background:var(--card-bg);border-radius:12px;padding:14px 16px;border:0.5px solid var(--border)}
+.stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.stat-emoji{font-size:20px}
+.novo-badge{background:var(--roxo-light);color:var(--roxo2);font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500;display:flex;align-items:center;gap:3px}
+.novo-badge.destaque{background:#6B2D8B;color:#fff}
+.radar.dark .novo-badge.destaque{background:#7B4FA0}
+.novo-dot{width:6px;height:6px;border-radius:50%;background:#4ade80}
+.stat-num{font-size:22px;font-weight:500;color:var(--roxo);line-height:1}
+.stat-label{font-size:11px;color:var(--txt2);margin-top:3px}
+.stat-divider{height:0.5px;background:var(--border);margin:10px 0}
+.stat-hoje{display:flex;align-items:center;justify-content:space-between}
+.stat-hoje-label{font-size:11px;color:var(--txt2)}
+.stat-hoje-num{font-size:13px;font-weight:500;color:var(--roxo)}
+.stat-hoje-num.zero{color:var(--txt3)}
+.busca-box{background:var(--card-bg);border-radius:12px;border:0.5px solid var(--border);padding:16px;margin-bottom:18px}
+.busca-title{font-size:14px;font-weight:500;color:var(--txt);margin-bottom:3px}
+.busca-sub{font-size:12px;color:var(--txt2);margin-bottom:12px}
+.busca-row{display:flex;gap:8px}
+.busca-input{flex:1;border:0.5px solid var(--border2);border-radius:8px;padding:9px 12px;font-size:13px;font-family:var(--font-sans);background:var(--bg3);color:var(--txt)}
+.busca-input:focus{outline:none;border-color:var(--roxo)}
+.busca-input::placeholder{color:var(--txt3)}
+.busca-btn-ia{background:var(--roxo);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)}
+.busca-btn-ia:hover{background:var(--roxo2)}
+.busca-btn-ia:disabled{background:var(--txt3)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chip{background:var(--roxo-light);color:var(--roxo2);font-size:11px;padding:4px 10px;border-radius:20px;cursor:pointer;border:none;font-family:var(--font-sans)}
+.chip:hover{opacity:.85}
+.fallback-aviso{font-size:11px;color:var(--txt3);margin-top:8px;display:flex;align-items:center;gap:4px}
+.filtros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.fil-label{font-size:12px;color:var(--txt2);margin-right:2px}
+.fil-btn{background:var(--card-bg);border:0.5px solid var(--border2);border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--txt2);display:flex;align-items:center;gap:4px;font-family:var(--font-sans)}
+.fil-btn.on{background:var(--roxo);color:#fff;border-color:var(--roxo)}
+.cards{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card-bg);border-radius:12px;border:0.5px solid var(--border);padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;transition:border-color .15s}
+@media(max-width:500px){.card{padding:12px}}
+.card:hover{border-color:var(--roxo-mid)}
+.card-pri{width:44px;min-width:44px;height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--roxo-light)}
+.card-pri-emoji{font-size:18px}
+.card-pri-label{font-size:9px;font-weight:500;color:var(--roxo)}
+.card-body{flex:1;min-width:0}
+.card-title{font-size:15px;font-weight:500;color:var(--txt);margin-bottom:5px;line-height:1.4}
+.card-source{font-size:12px;color:var(--txt2);margin-bottom:8px}
+.pct-row{display:flex;align-items:center;gap:8px}
+.pct-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.pct-fill{height:100%;border-radius:3px;background:var(--roxo)}
+.pct-fill.med{background:var(--roxo-mid)}
+.pct-fill.low{background:var(--txt3)}
+.pct-label{font-size:12px;font-weight:500;color:var(--roxo);min-width:38px;text-align:right}
+.pct-label.med{color:var(--roxo-mid)}
+.pct-label.low{color:var(--txt3)}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--roxo-light);color:var(--roxo2)}
+.card-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.deadline{font-size:11px;padding:3px 8px;border-radius:10px;background:var(--roxo-light);color:var(--roxo2);white-space:nowrap}
+.deadline.hot{background:#FFF3CD;color:#856404}
+.deadline.vencido{background:#f1efe8;color:var(--txt3)}
+.radar.dark .deadline.hot{background:#3d3000;color:#ffc107}
+.radar.dark .deadline.vencido{background:#2a2a2a;color:var(--txt3)}
+.empty{text-align:center;padding:32px;color:var(--txt2);font-size:14px}
+.res-section{margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px}
+.res-title{font-size:13px;font-weight:500;margin-bottom:10px;color:var(--txt)}
+.res-card{background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:8px;border-left:3px solid var(--roxo)}
+.res-card.B{border-left-color:var(--roxo-mid)}
+.res-card.C{border-left-color:var(--txt3)}
+.res-titulo{font-size:13px;font-weight:500;margin-bottom:4px;color:var(--txt)}
+.res-just{font-size:12px;color:var(--txt2);line-height:1.5;margin-bottom:6px}
+.res-meta{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--card-bg);color:var(--txt2);border:0.5px solid var(--border)}
+.footer{background:#6B2D8B;padding:12px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.radar.dark .footer{background:#2d1f3d}
+.footer-txt{color:rgba(255,255,255,0.75);font-size:11px}
+.info-wrap{position:relative;display:inline-flex;align-items:center;cursor:pointer;margin-left:4px;vertical-align:middle}
+.info-icon{width:14px;height:14px;border-radius:50%;background:var(--roxo-mid);color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;user-select:none}
+.tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#2C2C2A;color:#fff;font-size:11px;line-height:1.5;padding:8px 10px;border-radius:8px;width:200px;z-index:99;pointer-events:none;white-space:normal}
+.tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#2C2C2A}
+.info-wrap:hover .tooltip,.info-wrap.open .tooltip{display:block}
+</style>
+</head>
+<body>
+<div class="radar" id="radar">
+<div class="header">
+  <div class="header-logo">
+    <div class="logo-box">🏥</div>
+    <div>
+      <div class="header-name">Radar de Oportunidades</div>
+      <div class="header-sub">Santa Casa BH</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div> ao vivo</div>
+    <button class="mode-btn" id="mode-btn" onclick="toggleMode()" aria-label="Alternar modo escuro/claro">🌙</button>
+  </div>
+</div>
+<div class="content">
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-top"><span class="stat-emoji">📋</span><span class="novo-badge destaque"><span class="novo-dot"></span> <span id="novos-hoje">0</span> novos hoje</span></div>
+      <div class="stat-num" id="s-total">—</div>
+      <div class="stat-label">Total acumulado<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Todos os editais encontrados desde o início. Cresce todo dia com a atualização automática das 08h.</span></span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-hoje"><span class="stat-hoje-label">✨ Encontrados hoje</span><span class="stat-hoje-num zero" id="hoje-total">—</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-top"><span class="stat-emoji">🌟</span><span class="novo-badge">acumulado</span></div>
+      <div class="stat-num" id="s-ab">—</div>
+      <div class="stat-label">Alta aderência (A + B)<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com 60% ou mais de aderência ao perfil da Santa Casa BH.</span></span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-hoje"><span class="stat-hoje-label">✨ Novos hoje</span><span class="stat-hoje-num zero" id="hoje-ab">—</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-top"><span class="stat-emoji">🔔</span><span class="novo-badge">acumulado</span></div>
+      <div class="stat-num" id="s-a">—</div>
+      <div class="stat-label">Prioridade A — notificar já!<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com 80%+ de aderência. Notifique a equipe imediatamente!</span></span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-hoje"><span class="stat-hoje-label">🚨 Novos hoje</span><span class="stat-hoje-num zero" id="hoje-a">—</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-top"><span class="stat-emoji">⏰</span><span class="novo-badge">acumulado</span></div>
+      <div class="stat-num" id="s-prazo">—</div>
+      <div class="stat-label">Com prazo ativo<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais ainda dentro do prazo de inscrição.</span></span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-hoje"><span class="stat-hoje-label">📅 Vencem em 7 dias</span><span class="stat-hoje-num zero" id="hoje-prazo">—</span></div>
+    </div>
+  </div>
+  <div class="busca-box">
+    <div class="busca-title">🔍 Busca por projeto específico</div>
+    <div class="busca-sub">Descreva um projeto e o Radar encontra os melhores editais com IA ✨</div>
+    <div class="busca-row">
+      <input class="busca-input" id="proj-input" placeholder="Ex: equipamentos para UTI Neonatal, pesquisa clínica..."/>
+      <button class="busca-btn-ia" id="busca-btn" onclick="buscar()">✨ Buscar com IA</button>
+    </div>
+    <div class="chips">
+      <button class="chip" onclick="preencher('Equipamentos para UTI Neonatal com novos leitos para atendimento SUS')">🍼 UTI Neonatal</button>
+      <button class="chip" onclick="preencher('Pesquisa clínica em oncologia pediátrica com St. Jude Global')">🎗️ Oncologia</button>
+      <button class="chip" onclick="preencher('Inteligência artificial para triagem e otimização hospitalar')">🤖 IA hospitalar</button>
+      <button class="chip" onclick="preencher('Reforma e ampliação do bloco cirúrgico de alta complexidade')">🏗️ Bloco cirúrgico</button>
+      <button class="chip" onclick="preencher('Programa de inclusão da comunidade surda com Libras')">🤟 Inclusão surda</button>
+    </div>
+    <div id="busca-res"></div>
+  </div>
+  <div class="filtros">
+    <span class="fil-label">Filtrar por prioridade<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">A prioridade indica o quanto cada edital é adequado para a Santa Casa BH, calculada pela IA.</span></span>:</span>
+    <button class="fil-btn on" onclick="filtrar('todos',this)">🗂️ Todos</button>
+    <button class="fil-btn" onclick="filtrar('A',this)">🌟 Prioridade A<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência acima de 80%. Notificar a equipe imediatamente!</span></span></button>
+    <button class="fil-btn" onclick="filtrar('B',this)">✅ Prioridade B<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência entre 60% e 79%. Vale analisar com atenção.</span></span></button>
+    <button class="fil-btn" onclick="filtrar('C',this)">👀 Prioridade C<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência entre 40% e 59%. Vale monitorar.</span></span></button>
+    <button class="fil-btn" onclick="filtrar('D',this)">📁 Prioridade D<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência abaixo de 40%. Arquivado para referência.</span></span></button>
+  </div>
+  <div class="cards" id="lista"></div>
+</div>
+<div class="footer">
+  <div class="footer-txt">🤖 Qualificado por Claude AI · Atualização automática às 08h</div>
+  <div class="footer-txt">Santa Casa BH © 2025</div>
+</div>
+</div>
+<script>
+const SUPABASE_URL='https://ovedkeyvqzuomhkqepca.supabase.co';
+const SUPABASE_KEY='sb_publishable_J3_bfzs_OaAxqTPRJG8TVg_7TWJKkPdl4s';
+const ANTHROPIC_KEY=window.ANTHROPIC_API_KEY||'';
+const priEmoji={A:'🌟',B:'✅',C:'👀',D:'📁'};
+let isDark=false,todos=[],filtroAtivo='todos';
+
+function toggleMode(){isDark=!isDark;document.getElementById('radar').classList.toggle('dark',isDark);document.getElementById('mode-btn').textContent=isDark?'☀️':'🌙'}
+function toggleTip(el){const o=el.classList.contains('open');document.querySelectorAll('.info-wrap.open').forEach(e=>e.classList.remove('open'));if(!o)el.classList.add('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('.info-wrap'))document.querySelectorAll('.info-wrap.open').forEach(el=>el.classList.remove('open'))});
+function isHoje(d){const dt=new Date(d),h=new Date();return dt.getDate()===h.getDate()&&dt.getMonth()===h.getMonth()&&dt.getFullYear()===h.getFullYear()}
+function preencher(txt){document.getElementById('proj-input').value=txt}
+function scoreClass(s){return s>=70?'':s>=45?'med':'low'}
+function prazoLabel(deadline){
+  if(!deadline)return null;
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const vence=new Date(deadline);vence.setHours(0,0,0,0);
+  const diff=Math.round((vence-hoje)/(1000*60*60*24));
+  if(diff<0)return{txt:'📁 Prazo expirado',cls:'vencido'};
+  if(diff===0)return{txt:'⚠️ Vence hoje!',cls:'hot'};
+  if(diff<=7)return{txt:`⚠️ Vence em ${diff} dia${diff>1?'s':''}`,cls:'hot'};
+  return{txt:`📅 ${vence.toLocaleDateString('pt-BR')}`,cls:''};
+}
+function renderStats(){
+  const agora=new Date();agora.setHours(0,0,0,0);
+  const em7=new Date(agora.getTime()+7*86400000);
+  const hoje=todos.filter(d=>isHoje(d.created_at));
+  document.getElementById('s-total').textContent=todos.length;
+  document.getElementById('s-ab').textContent=todos.filter(d=>d.tier==='A'||d.tier==='B').length;
+  document.getElementById('s-a').textContent=todos.filter(d=>d.tier==='A').length;
+  document.getElementById('s-prazo').textContent=todos.filter(d=>{if(!d.deadline)return false;const v=new Date(d.deadline);v.setHours(0,0,0,0);return v>=agora}).length;
+  const ht=hoje.length,hab=hoje.filter(d=>d.tier==='A'||d.tier==='B').length,ha=hoje.filter(d=>d.tier==='A').length;
+  const hp=todos.filter(d=>{if(!d.deadline)return false;const v=new Date(d.deadline);v.setHours(0,0,0,0);return v>=agora&&v<=em7}).length;
+  document.getElementById('novos-hoje').textContent=ht;
+  document.getElementById('hoje-total').textContent=ht>0?`+${ht} 🆕`:'nenhum ainda';
+  document.getElementById('hoje-ab').textContent=hab>0?`+${hab} 🆕`:'nenhum ainda';
+  document.getElementById('hoje-a').textContent=ha>0?`+${ha} 🚨`:'nenhum ainda';
+  document.getElementById('hoje-prazo').textContent=hp>0?`${hp} ⚠️`:'nenhum';
+  ['hoje-total','hoje-ab','hoje-a','hoje-prazo'].forEach((id,i)=>{document.getElementById(id).className='stat-hoje-num'+([ht,hab,ha,hp][i]===0?' zero':'')});
+}
+function renderCard(d){
+  const sc=scoreClass(d.score),pct=Math.round(d.score)+'%';
+  const pl=prazoLabel(d.deadline);
+  const dlHtml=pl?`<div class="deadline ${pl.cls}">${pl.txt}</div>`:'';
+  const tags=(d.areas||[]).slice(0,3).map(a=>`<span class="tag">${a}</span>`).join('');
+  const url=(d.url||'').replace(/'/g,"\\'"),titulo=d.title.replace(/'/g,"\\'");
+  return`<div class="card" onclick="abrirEdital('${url}','${titulo}')">
+    <div class="card-pri"><span class="card-pri-emoji">${priEmoji[d.tier]}</span><span class="card-pri-label">Prior. ${d.tier}</span></div>
+    <div class="card-body">
+      <div class="card-title">${d.title}</div>
+      <div class="card-source">🏢 ${d.source}</div>
+      <div class="pct-row"><div class="pct-track"><div class="pct-fill ${sc}" style="width:${d.score}%"></div></div>
+      <span class="pct-label ${sc}">${pct} aderência<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">O quanto este edital se encaixa no perfil da Santa Casa BH, de 0% a 100%.</span></span></span></div>
+      ${tags?`<div class="tags">${tags}</div>`:''}
+    </div>
+    <div class="card-right">${dlHtml}</div>
+  </div>`;
+}
+function renderLista(){
+  const lista=todos.filter(d=>filtroAtivo==='todos'||d.tier===filtroAtivo);
+  document.getElementById('lista').innerHTML=lista.length?lista.map(renderCard).join(''):'<div class="empty">😕 Nenhuma oportunidade encontrada para este filtro.</div>';
+}
+function filtrar(tier,el){filtroAtivo=tier;document.querySelectorAll('.fil-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderLista()}
+function abrirEdital(url,titulo){if(url&&url.startsWith('http'))window.open(url,'_blank');else alert('Edital: '+titulo)}
+async function buscar(){
+  const proj=document.getElementById('proj-input').value.trim();
+  if(!proj)return;
+  const btn=document.getElementById('busca-btn');
+  btn.disabled=true;btn.textContent='⏳ Analisando...';
+  document.getElementById('busca-res').innerHTML='<div style="padding:12px 0;font-size:13px;color:var(--txt2)">🤖 O Claude está buscando os melhores editais para o seu projeto...</div>';
+  let usouFallback=false,resultados=[];
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`Você é especialista em captação de recursos para a Santa Casa BH (hospital filantrópico 100% SUS em Belo Horizonte, MG). Projeto: "${proj}". Sugira 4 fontes de financiamento. Responda APENAS JSON: {"resultados":[{"titulo":"nome","fonte":"org","tier":"A/B/C","score":número,"justificativa":"2 frases","areas":["área"]}]}`}]})});
+    const data=await r.json();
+    resultados=JSON.parse(data.content[0].text).resultados;
+  }catch(e){
+    usouFallback=true;
+    resultados=[
+      {titulo:'Chamada Pública MS — Alta Complexidade',fonte:'Ministério da Saúde',tier:'A',score:91,justificativa:'Alinhamento direto com missão SUS da Santa Casa BH. Histórico de aprovações na instituição.',areas:['Alta complexidade','SUS']},
+      {titulo:'BNDES Saúde — Equipamentos',fonte:'BNDES',tier:'B',score:72,justificativa:'Financiamento para equipamentos com condições especiais para filantrópicas.',areas:['Equipamentos']},
+      {titulo:'Emenda Parlamentar — Saúde',fonte:'Câmara dos Deputados',tier:'B',score:68,justificativa:'Canal consolidado com histórico de captação pela Santa Casa BH.',areas:['SUS','Filantropia']},
+      {titulo:'FAPEMIG — Pesquisa em Saúde',fonte:'FAPEMIG',tier:'C',score:51,justificativa:'Aderente se houver componente de pesquisa com universidade pública.',areas:['Pesquisa']}
+    ];
+  }
+  const aviso=usouFallback?'<div class="fallback-aviso">ℹ️ Resultado simulado — a IA não estava disponível neste momento.</div>':'';
+  document.getElementById('busca-res').innerHTML=`<div class="res-section"><div class="res-title">🎯 ${resultados.length} fontes encontradas para o seu projeto</div>${resultados.map(r=>`<div class="res-card ${r.tier}"><div class="res-titulo">${priEmoji[r.tier]} ${r.titulo}</div><div class="res-just">${r.justificativa}</div><div class="res-meta"><span class="pill">Prioridade ${r.tier}</span><span class="pill">${Math.round(r.score)}% aderência</span><span class="pill">🏢 ${r.fonte}</span>${(r.areas||[]).map(a=>`<span class="pill">${a}</span>`).join('')}</div></div>`).join('')}${aviso}</div>`;
+  btn.disabled=false;btn.textContent='✨ Buscar com IA';
+}
+async function init(){
+  try{
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/qualifications?select=*,opportunities(title,url,deadline,created_at,sources(name))&order=score.desc`,{headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}});
+    if(r.ok){const json=await r.json();if(json&&json.length>0){todos=json.map(q=>({title:q.opportunities?.title||'Sem título',source:q.opportunities?.sources?.name||'—',tier:q.tier,score:q.score,deadline:q.opportunities?.deadline||null,areas:q.matched_areas||[],url:q.opportunities?.url||null,created_at:q.created_at}));}}
+  }catch(e){}
+  renderStats();renderLista();
+}
+init();
+</script>
+</body>
+</html>
