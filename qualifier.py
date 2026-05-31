@@ -41,7 +41,7 @@ PALAVRAS-CHAVE PRIORITÁRIAS:
 SUS, oncologia, materno-infantil, UTI neonatal, hemodiálise, nefrologia,
 oftalmologia, alta complexidade, transplante, filantropia hospitalar,
 terceiro setor, saúde pública, equipamentos médicos, reforma hospitalar,
-inteligência artificial em saúde, pesquisa clínica.
+inteligência artificial em saúde, pesquisa clínica, inivação, inclusão.
 """
 
 def qualify_opportunity(title, description, url):
@@ -74,11 +74,16 @@ Critérios de tier:
 """
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+       model="claude-sonnet-4-5",
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
-    result = json.loads(response.content[0].text)
+    text = response.content[0].text.strip()
+if "```" in text:
+    text = text.split("```")[1]
+    if text.startswith("json"):
+        text = text[4:]
+result = json.loads(text.strip())
     return result
 
 def main():
