@@ -12,78 +12,77 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 client = Anthropic(api_key=ANTHROPIC_KEY)
 
 PERFIL_SANTA_CASA = """
-A Santa Casa de Misericórdia de Belo Horizonte é o maior complexo hospitalar de Minas Gerais,
-maior hospital do Brasil em internações SUS, com 125 anos de história, 1.153 leitos, 194 UTIs,
-mais de 7.000 colaboradores e modelo 100% SUS.
+A Santa Casa BH é o maior complexo hospitalar de Minas Gerais,
+maior hospital do Brasil em internações SUS, com 125 anos de história,
+1.153 leitos, 194 UTIs, mais de 7.000 colaboradores e modelo 100% SUS.
 
-ÁREAS PRIORITÁRIAS (alta aderência):
-- Oncologia adulto e pediátrico
-- Materno-infantil, UTI Neonatal, pediatria
-- Nefrologia, hemodiálise, diálise peritoneal
-- Oftalmologia: glaucoma, catarata, ceratocone, transplante de córnea
-- Alta complexidade cirúrgica e transplantes
-- Terapia intensiva UTI adulto e pediátrica
-- Inteligência artificial aplicada à saúde
-- Impressão 3D para uso assistencial
-- Pesquisa clínica nacional e internacional
-- Formação de profissionais de saúde
-- Residência médica e multiprofissional
-- Sustentabilidade e agenda ASG
+ÁREAS PRIORITÁRIAS:
+- Assistência à saúde de alta complexidade e SUS
+- Inovação e tecnologia em saúde (IA, digitalização, automação)
+- Educação e formação de profissionais de saúde
+- Sustentabilidade, ESG e agenda ambiental
 - Infraestrutura hospitalar e equipamentos médicos
-- Inclusão social e acessibilidade
-- Comunidade surda e Libras
-
-FONTES COM HISTÓRICO DE APROVAÇÃO:
-Leis de incentivo fiscal, emendas parlamentares, Ministério Público MG,
-parcerias corporativas, convênios públicos, pesquisa clínica.
+- Inclusão social, acessibilidade e comunidade surda
+- Pesquisa clínica e estudos científicos
+- Responsabilidade social e terceiro setor
 
 PALAVRAS-CHAVE PRIORITÁRIAS:
-SUS, oncologia, materno-infantil, UTI neonatal, hemodiálise, nefrologia,
-oftalmologia, alta complexidade, transplante, filantropia hospitalar,
-terceiro setor, saúde pública, equipamentos médicos, reforma hospitalar,
-inteligência artificial em saúde, pesquisa clínica, inivação, inclusão.
+SUS, saúde pública, hospital filantrópico, terceiro setor, inovação,
+tecnologia em saúde, inteligência artificial, digitalização, ESG,
+sustentabilidade, acessibilidade, inclusão, equipamentos médicos,
+reforma hospitalar, pesquisa clínica, educação em saúde,
+Minas Gerais, Belo Horizonte, filantropia, ODS.
 """
 
 def qualify_opportunity(title, description, url):
-    prompt = f"""Você é um especialista em captação de recursos para hospitais filantrópicos.
+    prompt = f"""Você é especialista em captação de recursos para a Santa Casa BH.
 
-Analise esta oportunidade de edital/financiamento e avalie a aderência ao perfil institucional da Santa Casa BH.
+Analise esta oportunidade e avalie a aderência ao perfil institucional.
 
 OPORTUNIDADE:
 Título: {title}
 Descrição: {description}
 URL: {url}
 
-PERFIL INSTITUCIONAL:
+PERFIL:
 {PERFIL_SANTA_CASA}
 
-Responda APENAS com um JSON válido, sem texto adicional, neste formato exato:
+Responda APENAS com JSON válido sem texto adicional:
 {{
   "score": <número de 0 a 100>,
   "tier": "<A, B, C ou D>",
-  "justification": "<explicação em 2-3 frases>",
+  "justification": "<2-3 frases>",
   "matched_areas": ["<área 1>", "<área 2>"],
   "matched_keywords": ["<palavra 1>", "<palavra 2>"]
 }}
 
-Critérios de tier:
-- Tier A (score 80-100): altíssima aderência, notificar imediatamente
-- Tier B (score 60-79): boa aderência, analisar com atenção
-- Tier C (score 40-59): aderência moderada, vale monitorar
-- Tier D (score 0-39): baixa aderência, arquivar
-"""
+Critérios:
+- Tier A (80-100): altíssima aderência, notificar imediatamente
+- Tier B (60-79): boa aderência, analisar com atenção
+- Tier C (40-59): aderência moderada, vale monitorar
+- Tier D (0-39): baixa aderência, arquivar"""
 
     response = client.messages.create(
-       model="claude-sonnet-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
+
     text = response.content[0].text.strip()
-if "```" in text:
-    text = text.split("```")[1]
-    if text.startswith("json"):
-        text = text[4:]
-result = json.loads(text.strip())
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts:
+            if "{" in part:
+                text = part
+                if text.startswith("json"):
+                    text = text[4:]
+                break
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    if start >= 0 and end > start:
+        text = text[start:end]
+
+    result = json.loads(text.strip())
     return result
 
 def main():
