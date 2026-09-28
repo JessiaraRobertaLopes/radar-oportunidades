@@ -82,6 +82,7 @@ body{font-family:var(--font-sans);background:#f1efe8;min-height:100vh;padding:20
 .deadline{font-size:11px;padding:3px 8px;border-radius:10px;background:var(--roxo-light);color:var(--roxo2);white-space:nowrap}
 .deadline.hot{background:#FFF3CD;color:#856404}
 .deadline.vencido{background:#f1efe8;color:var(--txt3)}
+.deadline.semprazo{background:var(--bg3);color:var(--txt3);border:0.5px dashed var(--border2)}
 .radar.dark .deadline.hot{background:#3d3000;color:#ffc107}
 .radar.dark .deadline.vencido{background:#2a2a2a;color:var(--txt3)}
 .empty{text-align:center;padding:32px;color:var(--txt2);font-size:14px}
@@ -131,21 +132,21 @@ body{font-family:var(--font-sans);background:#f1efe8;min-height:100vh;padding:20
     <div class="stat">
       <div class="stat-top"><span class="stat-emoji">🌟</span><span class="novo-badge">acumulado</span></div>
       <div class="stat-num" id="s-ab">—</div>
-      <div class="stat-label">Alta aderência (A + B)<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com 60% ou mais de aderência ao perfil da Santa Casa BH.</span></span></div>
+      <div class="stat-label">Alta aderência (A + B)<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com 60% ou mais de aderência, sem contar os expirados.</span></span></div>
       <div class="stat-divider"></div>
       <div class="stat-hoje"><span class="stat-hoje-label">✨ Novos hoje</span><span class="stat-hoje-num zero" id="hoje-ab">—</span></div>
     </div>
     <div class="stat">
       <div class="stat-top"><span class="stat-emoji">🔔</span><span class="novo-badge">acumulado</span></div>
       <div class="stat-num" id="s-a">—</div>
-      <div class="stat-label">Prioridade A — notificar já!<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com 80%+ de aderência. Notifique a equipe imediatamente!</span></span></div>
+      <div class="stat-label">Prioridade A — notificar já!<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com 80%+ de aderência, sem contar os expirados.</span></span></div>
       <div class="stat-divider"></div>
       <div class="stat-hoje"><span class="stat-hoje-label">🚨 Novos hoje</span><span class="stat-hoje-num zero" id="hoje-a">—</span></div>
     </div>
     <div class="stat">
       <div class="stat-top"><span class="stat-emoji">⏰</span><span class="novo-badge">acumulado</span></div>
       <div class="stat-num" id="s-prazo">—</div>
-      <div class="stat-label">Com prazo ativo<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais ainda dentro do prazo de inscrição.</span></span></div>
+      <div class="stat-label">Com prazo ativo<span class="info-wrap" onclick="toggleTip(this)"><span class="info-icon">i</span><span class="tooltip">Editais com data informada ainda dentro do prazo. Editais sem data não entram nesta conta.</span></span></div>
       <div class="stat-divider"></div>
       <div class="stat-hoje"><span class="stat-hoje-label">📅 Vencem em 7 dias</span><span class="stat-hoje-num zero" id="hoje-prazo">—</span></div>
     </div>
@@ -172,6 +173,7 @@ body{font-family:var(--font-sans);background:#f1efe8;min-height:100vh;padding:20
     <button class="fil-btn" onclick="filtrar('A',this)">🌟 Prioridade A<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência acima de 80%. Notificar a equipe imediatamente!</span></span></button>
     <button class="fil-btn" onclick="filtrar('B',this)">✅ Prioridade B<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência entre 60% e 79%. Vale analisar com atenção.</span></span></button>
     <button class="fil-btn" onclick="filtrar('C',this)">👀 Prioridade C<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência entre 40% e 59%. Vale monitorar.</span></span></button>
+    <button class="fil-btn on" id="btn-exp" onclick="toggleExpirados()">🙈 Expirados ocultos</button>
     <button class="fil-btn" onclick="filtrar('D',this)">📁 Prioridade D<span class="info-wrap" onclick="toggleTip(this);event.stopPropagation()"><span class="info-icon">i</span><span class="tooltip">Aderência abaixo de 40%. Arquivado para referência.</span></span></button>
   </div>
   <div class="cards" id="lista"></div>
@@ -183,7 +185,7 @@ body{font-family:var(--font-sans);background:#f1efe8;min-height:100vh;padding:20
 </div>
 <script>
 const SUPABASE_URL='https://ovedkeyvqzuomhkqepca.supabase.co';
-const SUPABASE_KEY= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92ZWRrZXl2cXp1b21oa3FlcGNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMjU2MDAsImV4cCI6MjA5NTgwMTYwMH0.zmwQPsYw47sDrvlHhGqskFN2MqNCKvKxvadE1CRMw0I';
+const SUPABASE_KEY='sb_publishable_J3_bfzs_OaAxqTPRJG8TVg_7TWJKkPdl4s';
 const ANTHROPIC_KEY=window.ANTHROPIC_API_KEY||'';
 const priEmoji={A:'🌟',B:'✅',C:'👀',D:'📁'};
 let isDark=false,todos=[],filtroAtivo='todos';
@@ -193,9 +195,12 @@ function toggleTip(el){const o=el.classList.contains('open');document.querySelec
 document.addEventListener('click',e=>{if(!e.target.closest('.info-wrap'))document.querySelectorAll('.info-wrap.open').forEach(el=>el.classList.remove('open'))});
 function isHoje(d){const dt=new Date(d),h=new Date();return dt.getDate()===h.getDate()&&dt.getMonth()===h.getMonth()&&dt.getFullYear()===h.getFullYear()}
 function preencher(txt){document.getElementById('proj-input').value=txt}
+function isExpirado(d){if(!d.deadline)return false;const h=new Date();h.setHours(0,0,0,0);const v=new Date(d.deadline);v.setHours(0,0,0,0);return v<h}
+let ocultarExp=true;
+function toggleExpirados(){ocultarExp=!ocultarExp;renderLista()}
 function scoreClass(s){return s>=70?'':s>=45?'med':'low'}
 function prazoLabel(deadline){
-  if(!deadline)return null;
+  if(!deadline)return{txt:'❔ Sem prazo informado',cls:'semprazo'};
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const vence=new Date(deadline);vence.setHours(0,0,0,0);
   const diff=Math.round((vence-hoje)/(1000*60*60*24));
@@ -209,10 +214,10 @@ function renderStats(){
   const em7=new Date(agora.getTime()+7*86400000);
   const hoje=todos.filter(d=>isHoje(d.created_at));
   document.getElementById('s-total').textContent=todos.length;
-  document.getElementById('s-ab').textContent=todos.filter(d=>d.tier==='A'||d.tier==='B').length;
-  document.getElementById('s-a').textContent=todos.filter(d=>d.tier==='A').length;
+  document.getElementById('s-ab').textContent=todos.filter(d=>!isExpirado(d)&&(d.tier==='A'||d.tier==='B')).length;
+  document.getElementById('s-a').textContent=todos.filter(d=>!isExpirado(d)&&d.tier==='A').length;
   document.getElementById('s-prazo').textContent=todos.filter(d=>{if(!d.deadline)return false;const v=new Date(d.deadline);v.setHours(0,0,0,0);return v>=agora}).length;
-  const ht=hoje.length,hab=hoje.filter(d=>d.tier==='A'||d.tier==='B').length,ha=hoje.filter(d=>d.tier==='A').length;
+  const ht=hoje.length,hab=hoje.filter(d=>!isExpirado(d)&&(d.tier==='A'||d.tier==='B')).length,ha=hoje.filter(d=>!isExpirado(d)&&d.tier==='A').length;
   const hp=todos.filter(d=>{if(!d.deadline)return false;const v=new Date(d.deadline);v.setHours(0,0,0,0);return v>=agora&&v<=em7}).length;
   document.getElementById('novos-hoje').textContent=ht;
   document.getElementById('hoje-total').textContent=ht>0?`+${ht} 🆕`:'nenhum ainda';
@@ -240,7 +245,11 @@ function renderCard(d){
   </div>`;
 }
 function renderLista(){
-  const lista=todos.filter(d=>filtroAtivo==='todos'||d.tier===filtroAtivo);
+  const base=todos.filter(d=>filtroAtivo==='todos'||d.tier===filtroAtivo);
+  const nExp=base.filter(isExpirado).length;
+  const lista=ocultarExp?base.filter(d=>!isExpirado(d)):base;
+  const b=document.getElementById('btn-exp');
+  if(b){b.classList.toggle('on',ocultarExp);b.textContent=(ocultarExp?'🙈 Expirados ocultos':'👁️ Mostrando expirados')+' ('+nExp+')'}
   document.getElementById('lista').innerHTML=lista.length?lista.map(renderCard).join(''):'<div class="empty">😕 Nenhuma oportunidade encontrada para este filtro.</div>';
 }
 function filtrar(tier,el){filtroAtivo=tier;document.querySelectorAll('.fil-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderLista()}
@@ -271,8 +280,8 @@ async function buscar(){
 }
 async function init(){
   try{
-   const r=await fetch(`${SUPABASE_URL}/rest/v1/qualifications?select=id,score,tier,matched_areas,created_at,opportunities(title,url,deadline,created_at,sources(name))&order=score.desc`,{headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}});
-    if(r.ok){const json=await r.json();if(json&&json.length>0){todos=json.map(q=>({title:q.opportunities?.title||'Sem título',source:q.opportunities?.sources?.name||'—',tier:q.tier,score:q.score,deadline:q.opportunities?.deadline||null,areas:q.matched_areas||[],url:q.opportunities?.url||null,created_at:q.created_at}));}}
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/qualifications?select=*,opportunities(title,url,deadline,created_at,sources(name))&order=score.desc`,{headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}});
+    if(r.ok){const json=await r.json();if(json&&json.length>0){todos=json.map(q=>({title:q.opportunities?.title||'Sem título',source:q.opportunities?.sources?.name||'—',tier:q.tier,score:q.score,deadline:q.opportunities?.deadline||null,areas:q.matched_areas||[],url:q.opportunities?.url||null,created_at:q.opportunities?.created_at||q.created_at}));}}
   }catch(e){}
   renderStats();renderLista();
 }
