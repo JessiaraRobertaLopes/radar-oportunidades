@@ -1,12 +1,20 @@
 name: Radar de Oportunidades v2
 
 # Execução manual (botão "Run workflow" no GitHub Actions).
-# Para voltar a rodar sozinho, remova o "#" das 2 linhas de schedule abaixo.
+# Para voltar a rodar sozinho todo dia, remova o "#" das 2 linhas de schedule abaixo.
 on:
   # schedule:
   #   - cron: '0 11 * * 1-5'   # 08h de Brasília, dias úteis
   workflow_dispatch:
     inputs:
+      modo:
+        description: 'normal = busca editais novos | releitura = relê os editais antigos do banco'
+        required: true
+        default: 'normal'
+        type: choice
+        options:
+          - normal
+          - releitura
       max_leituras:
         description: 'Máximo de editais lidos pela IA nesta execução (controla o custo)'
         required: true
@@ -33,6 +41,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MAX_LEITURAS: ${{ github.event.inputs.max_leituras || '15' }}
+          MODO: ${{ github.event.inputs.modo || 'normal' }}
         run: python scraper.py
 
       - name: Qualificar editais novos
