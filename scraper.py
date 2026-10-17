@@ -1,243 +1,339 @@
-import os
+"""
+RADAR DE OPORTUNIDADES v2 - ROBÔ DE CAPTAÇÃO
+Fluxo:
+  1. DESCOBRIR   candidatos nas fontes fixas e na busca web
+  2. BARRAR      repetidos pelo link canônico (antes de gastar IA)
+  3. LER         a página e o PDF do edital e extrair os dados com evidência
+  4. BARRAR      repetidos pela chave órgão + número; descartar encerrados
+  5. SALVAR      só editais abertos, de fluxo contínuo ou com situação indefinida
+"""
 import hashlib
-import requests
+import re
+from datetime import date
+from difflib import SequenceMatcher
+
 from bs4 import BeautifulSoup
-from supabase import create_client
-from anthropic import Anthropic
-from datetime import datetime
-import json
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
-ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
+import comum as c
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-client = Anthropic(api_key=ANTHROPIC_KEY)
+ANO = date.today().year
 
-FONTES_ESPECIFICAS = [
+# ---------------------------------------------------------------------
+# Fontes fixas (páginas de listagem de editais)
+# ---------------------------------------------------------------------
+FONTES_FIXAS = [
     {
-        "name": "Ministério da Saúde — Chamamentos 2026",
-        "url": "https://www.gov.br/saude/pt-br/acesso-a-informacao/participacao-social/chamamentos-publicos/2026",
-        "scrape_type": "html_static"
+        "nome": "Ministério da Saúde | Chamamentos públicos",
+        "url": f"https://www.gov.br/saude/pt-br/acesso-a-informacao/participacao-social/chamamentos-publicos/{ANO}",
+        "palavras": ["chamamento", "edital", "chamada", "seleção", "convocação"],
     },
     {
-        "name": "FAPEMIG — Chamadas e Editais",
+        "nome": "FAPEMIG | Chamadas e editais",
         "url": "https://fapemig.br/oportunidades/chamadas-e-editais",
-        "scrape_type": "html_static"
+        "palavras": ["chamada", "edital", "seleção", "programa"],
     },
 ]
 
+# Busca web: poucos termos, sem sobreposição, sempre pedindo inscrições abertas
 TERMOS_BUSCA = [
-    "edital aberto saúde SUS hospital filantrópico 2026",
-    "chamamento público inovação saúde tecnologia hospitalar 2026",
-    "financiamento acessibilidade inclusão saúde 2026",
-    "edital ESG sustentabilidade saúde hospital 2026",
-    "chamada pública digitalização transformação digital saúde 2026",
-    "financiamento infraestrutura equipamentos hospitalares SUS 2026",
-    "edital formação educação profissionais saúde 2026",
-    "chamamento público pesquisa clínica inovação Brasil 2026",
-    "financiamento terceiro setor filantropia saúde Minas Gerais 2026",
-    "edital ODS saúde bem estar desenvolvimento sustentável 2026",
-    "chamada pública inteligência artificial saúde 2026",
-    "financiamento reforma ampliação hospital SUS 2026",
-    "edital segurança paciente qualidade hospitalar 2026",
-    "chamamento emenda parlamentar saúde Minas Gerais 2026",
-    "financiamento internacional saúde Brasil OMS OPAS 2026",
+    "edital com inscrições abertas para hospitais filantrópicos SUS",
+    "chamamento público inovação e saúde digital inscrições abertas",
+    "edital financiamento infraestrutura e equipamentos hospitalares entidades filantrópicas",
+    "edital pesquisa clínica e formação de profissionais de saúde inscrições abertas",
+    "edital ESG sustentabilidade e inclusão social para organizações de saúde sem fins lucrativos",
+    "edital fundações e institutos privados apoio a hospitais filantrópicos Minas Gerais",
 ]
 
-def make_hash(title, url):
-    return hashlib.sha256(f"{title}{url}".encode()).hexdigest()
+PROMPT_LEITURA = """Você recebe trechos de uma página e/ou documento de edital. Extraia os dados SOMENTE do texto fornecido.
 
-def get_or_create_source(name, url, scrape_type="html_static"):
-    result = supabase.table("sources").select("id").eq("url", url).execute()
-    if result.data:
-        return result.data[0]["id"]
-    inserted = supabase.table("sources").insert({
-        "name": name,
-        "url": url,
-        "scrape_type": scrape_type,
-        "frequency": "daily",
-        "active": True
-    }).execute()
-    return inserted.data[0]["id"]
+REGRAS OBRIGATÓRIAS
+- Nunca invente. Se o dado não estiver no texto, use null (ou "indefinido" nos campos de situação).
+- Para cada data, valor ou elegibilidade informada, copie em "evidencias" o trecho LITERAL do texto de onde tirou o dado (até 200 caracteres).
+- Datas no formato AAAA-MM-DD. "prazo_inscricao" é a data final para enviar a proposta/inscrição.
+- "situacao": "aberto" (inscrições abertas hoje, {hoje}), "encerrado" (prazo já passou ou o texto diz encerrado/resultado final),
+  "fluxo_continuo" (sem prazo final: programa permanente, linha de crédito, credenciamento contínuo) ou "indefinido".
+- "aceita_filantropico": "sim" se hospitais filantrópicos/entidades privadas sem fins lucrativos/Santas Casas podem participar,
+  "nao" se o público é exclusivamente outro (ex.: só municípios, só pessoas físicas, só empresas com fins lucrativos), senão "indefinido".
+- "eh_edital": false se o texto não for de uma oportunidade de financiamento/seleção (ex.: notícia, portaria de reajuste, resultado, página de menu).
 
-def save_opportunity(source_id, title, url, description="", deadline=None):
-    if not title or len(title.strip()) < 10:
-        return False
-    h = make_hash(title, url)
-    existing = supabase.table("opportunities").select("id").eq("hash", h).execute()
-    if existing.data:
-        return False
-    supabase.table("opportunities").insert({
-        "source_id": source_id,
-        "title": title.strip(),
-        "url": url,
-        "description": description[:500] if description else "",
-        "deadline": deadline,
-        "hash": h,
-        "updated_at": datetime.utcnow().isoformat()
-    }).execute()
-    return True
-
-def scrape_ministerio_saude(source):
-    print(f"Raspando: {source['name']}")
-    source_id = get_or_create_source(source["name"], source["url"])
-    count = 0
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; RadarBot/1.0)"}
-        response = requests.get(source["url"], headers=headers, timeout=30)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        for link in soup.find_all("a", href=True):
-            title = link.get_text(strip=True)
-            href = link["href"]
-            if len(title) < 15:
-                continue
-            if not any(kw in title.lower() for kw in ["chamamento", "edital", "chamada", "seleção", "convocação"]):
-                continue
-            if href.startswith("/"):
-                href = "https://www.gov.br" + href
-            elif not href.startswith("http"):
-                continue
-            parent = link.find_parent()
-            desc = parent.get_text(strip=True)[:300] if parent else ""
-            if save_opportunity(source_id, title, href, desc):
-                count += 1
-                print(f"  ✅ {title[:60]}")
-        supabase.table("sources").update({
-            "last_scraped_at": datetime.utcnow().isoformat()
-        }).eq("id", source_id).execute()
-    except Exception as e:
-        print(f"  ❌ Erro: {e}")
-    print(f"  → {count} novos editais encontrados")
-    return count
-
-def scrape_fapemig(source):
-    print(f"Raspando: {source['name']}")
-    source_id = get_or_create_source(source["name"], source["url"])
-    count = 0
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; RadarBot/1.0)"}
-        response = requests.get(source["url"], headers=headers, timeout=30)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        for link in soup.find_all("a", href=True):
-            title = link.get_text(strip=True)
-            href = link["href"]
-            if len(title) < 10:
-                continue
-            if not any(kw in title.lower() for kw in ["chamada", "edital", "seleção", "apoio", "programa", "pesquisa"]):
-                continue
-            if href.startswith("/"):
-                href = "https://fapemig.br" + href
-            elif not href.startswith("http"):
-                continue
-            parent = link.find_parent()
-            desc = parent.get_text(strip=True)[:300] if parent else ""
-            if save_opportunity(source_id, title, href, desc):
-                count += 1
-                print(f"  ✅ {title[:60]}")
-        supabase.table("sources").update({
-            "last_scraped_at": datetime.utcnow().isoformat()
-        }).eq("id", source_id).execute()
-    except Exception as e:
-        print(f"  ❌ Erro: {e}")
-    print(f"  → {count} novos editais encontrados")
-    return count
-
-def busca_web_claude(termo):
-    print(f"🔍 Buscando na web: {termo}")
-    source_name = f"Busca Web — {termo[:40]}"
-    source_url = f"https://busca-web/{hashlib.md5(termo.encode()).hexdigest()}"
-    source_id = get_or_create_source(source_name, source_url, "web_search")
-    count = 0
-    try:
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=2000,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            messages=[{
-                "role": "user",
-                "content": f"""Faça uma busca web por: "{termo}"
-
-Encontre editais, chamamentos públicos ou oportunidades de financiamento REAIS e ATUAIS (2025-2026) relevantes para a Santa Casa BH (hospital filantrópico 100% SUS em Belo Horizonte, MG).
-
-Retorne APENAS um JSON válido com até 5 resultados:
+Responda APENAS com JSON:
 {{
-  "editais": [
-    {{
-      "titulo": "título completo do edital",
-      "fonte": "nome da organização",
-      "url": "URL completa e real",
-      "descricao": "descrição em 1-2 frases",
-      "prazo": "data de encerramento no formato YYYY-MM-DD ou null"
-    }}
-  ]
+  "eh_edital": true,
+  "titulo_oficial": "...",
+  "orgao": "órgão ou instituição responsável",
+  "numero_edital": "ex.: 01/2026 ou null",
+  "situacao": "aberto|encerrado|fluxo_continuo|indefinido",
+  "data_abertura": "AAAA-MM-DD ou null",
+  "prazo_inscricao": "AAAA-MM-DD ou null",
+  "valor": "texto curto com o valor total ou por proposta, ou null",
+  "publico_elegivel": "quem pode participar, em 1 frase, ou null",
+  "aceita_filantropico": "sim|nao|indefinido",
+  "resumo": "2 a 3 frases objetivas sobre o que o edital financia",
+  "evidencias": {{"prazo_inscricao": "...", "data_abertura": "...", "valor": "...", "publico_elegivel": "...", "situacao": "..."}}
 }}
 
-Inclua APENAS editais reais com URLs válidas. Se não encontrar nada relevante, retorne {{"editais": []}}"""
-            }]
-        )
-        text = ""
-        for block in response.content:
-            if hasattr(block, "text"):
-                text += block.text
-        if not text.strip():
-            return 0
-        text = text.strip()
-        if "```" in text:
-            parts = text.split("```")
-            for part in parts:
-                if "{" in part:
-                    text = part
-                    if text.startswith("json"):
-                        text = text[4:]
-                    break
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start >= 0 and end > start:
-            text = text[start:end]
-        data = json.loads(text)
-        editais = data.get("editais", [])
-        for edital in editais:
-            titulo = edital.get("titulo", "")
-            url = edital.get("url", "")
-            descricao = edital.get("descricao", "")
-            fonte = edital.get("fonte", "")
-            prazo = edital.get("prazo")
-            if not titulo or not url or not url.startswith("http"):
-                continue
-            src_id = get_or_create_source(
-                f"Web — {fonte}" if fonte else source_name,
-                url,
-                "web_search"
-            )
-            if save_opportunity(src_id, titulo, url, descricao, prazo):
-                count += 1
-                print(f"  ✅ {titulo[:60]}")
-    except Exception as e:
-        print(f"  ❌ Erro na busca web: {e}")
-    print(f"  → {count} novos editais encontrados")
-    return count
+LINK: {url}
+TEXTO:
+{texto}"""
 
-def main():
-    total = 0
-    print("=" * 50)
-    print("RADAR DE OPORTUNIDADES — Santa Casa BH")
-    print(f"Iniciado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    print("=" * 50)
+PROMPT_BUSCA = """Hoje é {hoje}. Busque na web: "{termo}".
 
-    print("\n📡 FONTES ESPECÍFICAS")
-    total += scrape_ministerio_saude(FONTES_ESPECIFICAS[0])
-    total += scrape_fapemig(FONTES_ESPECIFICAS[1])
+Quero apenas editais, chamamentos ou programas de financiamento com INSCRIÇÕES ABERTAS HOJE ou de FLUXO CONTÍNUO,
+aos quais um hospital filantrópico 100% SUS de Belo Horizonte (MG) possa se candidatar.
+Ignore notícias, resultados, editais encerrados e editais de anos anteriores.
+Para cada um, informe o link da PÁGINA OFICIAL do edital no site do órgão responsável (não links de notícia ou agregadores).
 
-    print("\n🌐 BUSCA WEB")
+Responda APENAS com JSON (até 5 itens):
+{{"editais": [{{"titulo": "...", "orgao": "...", "url": "https://..."}}]}}
+Se não houver nada, responda {{"editais": []}}."""
+
+
+# ---------------------------------------------------------------------
+# Memória do que já existe no banco (para barrar repetidos)
+# ---------------------------------------------------------------------
+class Memoria:
+    def __init__(self):
+        dados = c.supabase().table("opportunities").select("id, title, url, url_canonica, chave_edital").execute().data
+        self.urls = set()
+        self.chaves = set()
+        self.titulos = []
+        for o in dados:
+            self.urls.add(o.get("url_canonica") or c.url_canonica(o.get("url")))
+            if o.get("chave_edital"):
+                self.chaves.add(o["chave_edital"])
+            else:
+                ch = c.chave_edital(o.get("title"), url=o.get("url"))
+                if ch:
+                    self.chaves.add(ch)
+            self.titulos.append(c.normalizar_texto(o.get("title")))
+        self.urls.discard(None)
+
+    def link_conhecido(self, url):
+        return c.url_canonica(url) in self.urls
+
+    def edital_conhecido(self, chave, titulo):
+        if chave and chave in self.chaves:
+            return True
+        t = c.normalizar_texto(titulo)
+        # sem número de edital: compara o título com os existentes
+        return not chave and any(SequenceMatcher(None, t, x).ratio() >= 0.88 for x in self.titulos)
+
+    def registrar(self, url, chave, titulo):
+        self.urls.add(c.url_canonica(url))
+        if chave:
+            self.chaves.add(chave)
+        self.titulos.append(c.normalizar_texto(titulo))
+
+
+# ---------------------------------------------------------------------
+# Fontes (tabela sources): uma por fonte fixa e uma por domínio na web
+# ---------------------------------------------------------------------
+_fontes_cache = {}
+
+
+def fonte_id(nome, url, tipo):
+    if url in _fontes_cache:
+        return _fontes_cache[url]
+    sb = c.supabase()
+    achou = sb.table("sources").select("id").eq("url", url).execute().data
+    if achou:
+        _fontes_cache[url] = achou[0]["id"]
+    else:
+        novo = sb.table("sources").insert(
+            {"name": nome, "url": url, "scrape_type": tipo, "frequency": "manual", "active": True}
+        ).execute().data
+        _fontes_cache[url] = novo[0]["id"]
+    return _fontes_cache[url]
+
+
+# ---------------------------------------------------------------------
+# 1. DESCOBRIR
+# ---------------------------------------------------------------------
+def descobrir_fontes_fixas():
+    candidatos = []
+    for f in FONTES_FIXAS:
+        print(f"Fonte fixa: {f['nome']}")
+        try:
+            r = c.baixar(f["url"])
+            soup = BeautifulSoup(r.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                titulo = a.get_text(" ", strip=True)
+                if len(titulo) < 15 or not any(p in titulo.lower() for p in f["palavras"]):
+                    continue
+                href = c.urljoin(r.url, a["href"])
+                if href.startswith("http"):
+                    candidatos.append({"titulo": titulo, "url": href, "fonte_nome": f["nome"], "fonte_url": f["url"], "tipo": "html_static"})
+            c.supabase().table("sources").update({"last_scraped_at": c.agora_iso()}).eq("url", f["url"]).execute()
+        except Exception as e:
+            print(f"  erro: {e}")
+    return candidatos
+
+
+def descobrir_busca_web():
+    candidatos = []
+    hoje = date.today().strftime("%d/%m/%Y")
     for termo in TERMOS_BUSCA:
-        total += busca_web_claude(termo)
+        print(f"Busca web: {termo}")
+        try:
+            resposta = c.perguntar(
+                c.MODELO_BUSCA,
+                PROMPT_BUSCA.format(hoje=hoje, termo=termo),
+                max_tokens=1500,
+                ferramentas=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+            )
+            for e in c.extrair_json(resposta).get("editais", []):
+                url = (e.get("url") or "").strip()
+                if url.startswith("http") and e.get("titulo"):
+                    dom = c.dominio(url)
+                    candidatos.append({
+                        "titulo": e["titulo"], "url": url,
+                        "fonte_nome": f"Web | {e.get('orgao') or dom}", "fonte_url": f"https://{dom}",
+                        "tipo": "web_search",
+                    })
+        except Exception as ex:
+            print(f"  erro: {ex}")
+    return candidatos
 
-    print("\n" + "=" * 50)
-    print(f"✅ TOTAL: {total} novos editais encontrados")
-    print("=" * 50)
+
+# ---------------------------------------------------------------------
+# 3. LER o edital
+# ---------------------------------------------------------------------
+def ler_edital(candidato):
+    texto, link_pdf = c.ler_documento(candidato["url"])
+    trechos = c.recortar_trechos(texto)
+    if len(trechos) < 200:
+        raise ValueError("página sem conteúdo suficiente")
+    hoje = date.today().isoformat()
+    dados = c.extrair_json(c.perguntar(
+        c.MODELO_LEITURA,
+        PROMPT_LEITURA.format(hoje=hoje, url=candidato["url"], texto=trechos),
+        max_tokens=1200,
+    ))
+    ev = dados.get("evidencias") or {}
+
+    # Só aceita o que tem evidência real no documento
+    for campo in ("prazo_inscricao", "data_abertura", "valor", "publico_elegivel"):
+        if dados.get(campo) and not c.evidencia_confere(ev.get(campo), texto):
+            dados[campo] = None
+            ev.pop(campo, None)
+
+    prazo = c.data_valida(dados.get("prazo_inscricao"))
+    situacao = dados.get("situacao") if dados.get("situacao") in ("aberto", "encerrado", "fluxo_continuo", "indefinido") else "indefinido"
+    if prazo and prazo < date.today():
+        situacao = "encerrado"
+    elif prazo and situacao == "indefinido":
+        situacao = "aberto"
+
+    return {
+        "eh_edital": dados.get("eh_edital", True) is not False,
+        "titulo": (dados.get("titulo_oficial") or candidato["titulo"]).strip()[:400],
+        "orgao": dados.get("orgao"),
+        "numero": dados.get("numero_edital"),
+        "situacao": situacao,
+        "prazo": prazo.isoformat() if prazo else None,
+        "data_abertura": (c.data_valida(dados.get("data_abertura")) or None),
+        "valor": dados.get("valor"),
+        "publico_elegivel": dados.get("publico_elegivel"),
+        "aceita_filantropico": dados.get("aceita_filantropico") if dados.get("aceita_filantropico") in ("sim", "nao", "indefinido") else "indefinido",
+        "resumo": dados.get("resumo"),
+        "evidencias": ev or None,
+        "link_documento": link_pdf,
+        "trechos": trechos,
+    }
+
+
+# ---------------------------------------------------------------------
+# 5. SALVAR
+# ---------------------------------------------------------------------
+def salvar(candidato, lido, chave):
+    url = candidato["url"]
+    registro = {
+        "source_id": fonte_id(candidato["fonte_nome"], candidato["fonte_url"], candidato["tipo"]),
+        "title": lido["titulo"],
+        "url": url,
+        "url_canonica": c.url_canonica(url),
+        "description": (lido["resumo"] or lido["trechos"][:500])[:1000],
+        "deadline": lido["prazo"],
+        "hash": hashlib.sha256((chave or c.url_canonica(url)).encode()).hexdigest(),
+        "orgao": lido["orgao"],
+        "numero_edital": lido["numero"],
+        "chave_edital": chave,
+        "situacao": lido["situacao"],
+        "data_abertura": lido["data_abertura"].isoformat() if lido["data_abertura"] else None,
+        "valor": lido["valor"],
+        "publico_elegivel": lido["publico_elegivel"],
+        "aceita_filantropico": lido["aceita_filantropico"],
+        "resumo": lido["resumo"],
+        "evidencias": lido["evidencias"],
+        "link_documento": lido["link_documento"],
+        "lido_em": c.agora_iso(),
+        "updated_at": c.agora_iso(),
+    }
+    c.supabase().table("opportunities").insert(registro).execute()
+
+
+# ---------------------------------------------------------------------
+# Execução
+# ---------------------------------------------------------------------
+def main():
+    print("=" * 60)
+    print(f"RADAR DE OPORTUNIDADES v2 | {date.today().strftime('%d/%m/%Y')}")
+    print(f"Limite de leituras nesta execução: {c.MAX_LEITURAS}")
+    print("=" * 60)
+
+    memoria = Memoria()
+    candidatos = descobrir_fontes_fixas() + descobrir_busca_web()
+    print(f"\nCandidatos encontrados: {len(candidatos)}")
+
+    # 2. BARRAR repetidos pelo link (e repetidos dentro da própria rodada)
+    vistos, novos = set(), []
+    for cand in candidatos:
+        u = c.url_canonica(cand["url"])
+        if not u or u in vistos or memoria.link_conhecido(cand["url"]):
+            continue
+        vistos.add(u)
+        novos.append(cand)
+    print(f"Links novos (não vistos antes): {len(novos)}")
+
+    contagem = {"salvos": 0, "repetidos": 0, "encerrados": 0, "nao_edital": 0, "erros": 0}
+    for cand in novos[: c.MAX_LEITURAS]:
+        print(f"\nLendo: {cand['titulo'][:80]}")
+        try:
+            lido = ler_edital(cand)
+        except Exception as e:
+            contagem["erros"] += 1
+            print(f"  não foi possível ler: {e}")
+            continue
+
+        if not lido["eh_edital"]:
+            contagem["nao_edital"] += 1
+            print("  ignorado: não é um edital")
+            continue
+        if lido["situacao"] == "encerrado":
+            contagem["encerrados"] += 1
+            print(f"  ignorado: encerrado (prazo {lido['prazo']})")
+            continue
+
+        chave = c.chave_edital(lido["titulo"], lido["orgao"], c.numero_edital(lido["numero"] or ""), cand["url"])
+        if memoria.edital_conhecido(chave, lido["titulo"]):
+            contagem["repetidos"] += 1
+            print(f"  ignorado: edital já existe ({chave})")
+            continue
+
+        salvar(cand, lido, chave)
+        memoria.registrar(cand["url"], chave, lido["titulo"])
+        contagem["salvos"] += 1
+        print(f"  SALVO | {lido['situacao']} | prazo {lido['prazo']} | filantrópico: {lido['aceita_filantropico']}")
+
+    if len(novos) > c.MAX_LEITURAS:
+        print(f"\n{len(novos) - c.MAX_LEITURAS} links ficaram para a próxima execução (limite de leituras).")
+
+    print("\n" + "=" * 60)
+    print(f"Salvos: {contagem['salvos']} | Repetidos barrados: {contagem['repetidos']} | "
+          f"Encerrados descartados: {contagem['encerrados']} | Não eram edital: {contagem['nao_edital']} | Erros: {contagem['erros']}")
+    print(c.resumo_custo())
+    print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

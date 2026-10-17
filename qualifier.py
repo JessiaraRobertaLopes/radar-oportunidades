@@ -1,125 +1,93 @@
-import os
-import json
-from supabase import create_client
-from anthropic import Anthropic
-from datetime import datetime
-
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
-ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-client = Anthropic(api_key=ANTHROPIC_KEY)
-
-PERFIL_SANTA_CASA = """
-A Santa Casa BH é o maior complexo hospitalar de Minas Gerais,
-maior hospital do Brasil em internações SUS, com 125 anos de história,
-1.153 leitos, 194 UTIs, mais de 7.000 colaboradores e modelo 100% SUS.
-
-ÁREAS PRIORITÁRIAS:
-- Assistência à saúde de alta complexidade e SUS
-- Inovação e tecnologia em saúde (IA, digitalização, automação)
-- Educação e formação de profissionais de saúde
-- Sustentabilidade, ESG e agenda ambiental
-- Infraestrutura hospitalar e equipamentos médicos
-- Inclusão social, acessibilidade e comunidade surda
-- Pesquisa clínica e estudos científicos
-- Responsabilidade social e terceiro setor
-
-PALAVRAS-CHAVE PRIORITÁRIAS:
-SUS, saúde pública, hospital filantrópico, terceiro setor, inovação,
-tecnologia em saúde, inteligência artificial, digitalização, ESG,
-sustentabilidade, acessibilidade, inclusão, equipamentos médicos,
-reforma hospitalar, pesquisa clínica, educação em saúde,
-Minas Gerais, Belo Horizonte, filantropia, ODS.
 """
+RADAR DE OPORTUNIDADES v2 - QUALIFICAÇÃO COM RÉGUA
+Qualifica só editais lidos pelo robô v2, que não são repetidos e não estão encerrados.
+A nota considera: alinhamento ao perfil, elegibilidade de filantrópico, situação e informação disponível.
+"""
+import json
+from datetime import date
 
-def qualify_opportunity(title, description, url):
-    prompt = f"""Você é especialista em captação de recursos para a Santa Casa BH.
+import comum as c
 
-Analise esta oportunidade e avalie a aderência ao perfil institucional.
+PERFIL = """A Santa Casa BH é o maior complexo hospitalar de Minas Gerais e o maior hospital do Brasil em internações SUS:
+instituição filantrópica, 100% SUS, mais de 120 anos, cerca de 1.150 leitos e 190 UTIs, mais de 7.000 colaboradores,
+com faculdade, ensino e pesquisa.
 
-OPORTUNIDADE:
-Título: {title}
-Descrição: {description}
-URL: {url}
+ÁREAS PRIORITÁRIAS
+- Assistência de alta complexidade e SUS (oncologia, cardiologia, neurologia, transplantes, materno-infantil, UTI)
+- Inovação e tecnologia em saúde (IA, saúde digital, automação)
+- Educação e formação de profissionais de saúde; residências
+- Pesquisa clínica
+- Infraestrutura hospitalar, reforma, ampliação e equipamentos
+- Sustentabilidade, ESG e agenda ambiental
+- Inclusão social e acessibilidade (inclusive comunidade surda)
+- Sustentabilidade financeira de hospitais filantrópicos"""
 
-PERFIL:
-{PERFIL_SANTA_CASA}
+REGUA = """RÉGUA DE AVALIAÇÃO (siga rigorosamente)
 
-Responda APENAS com JSON válido sem texto adicional:
-{{
-  "score": <número de 0 a 100>,
-  "tier": "<A, B, C ou D>",
-  "justification": "<2-3 frases>",
-  "matched_areas": ["<área 1>", "<área 2>"],
-  "matched_keywords": ["<palavra 1>", "<palavra 2>"]
-}}
+1. Alinhamento (0 a 50): o objeto do edital financia algo que a instituição faz ou planeja fazer?
+   45-50 direto e central | 30-44 relevante | 15-29 tangencial | 0-14 sem relação
+2. Elegibilidade (0 a 30): a instituição pode se candidatar?
+   aceita_filantropico = sim -> 25-30 | indefinido -> 10-18 | nao -> 0
+3. Viabilidade (0 a 20): situação e prazo
+   aberto com prazo >= 15 dias, ou fluxo contínuo -> 15-20 | aberto com prazo < 15 dias -> 8-14 | indefinido -> 3-8
 
-Critérios:
-- Tier A (80-100): altíssima aderência, notificar imediatamente
-- Tier B (60-79): boa aderência, analisar com atenção
-- Tier C (40-59): aderência moderada, vale monitorar
-- Tier D (0-39): baixa aderência, arquivar"""
+score = soma. Prioridade: A >= 80 | B 60-79 | C 40-59 | D < 40
+TRAVAS: se aceita_filantropico = "nao" -> tier D. Se aceita_filantropico = "indefinido" -> no máximo B.
+Seja exigente: uma carteira saudável tem poucos A. Na dúvida entre duas faixas, escolha a menor.
 
-    response = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+Responda APENAS com JSON:
+{"score": 0, "tier": "A|B|C|D", "justification": "2 a 3 frases citando alinhamento, elegibilidade e prazo",
+ "matched_areas": ["áreas prioritárias atendidas"], "matched_keywords": ["palavras-chave"]}"""
 
-    text = response.content[0].text.strip()
-    if "```" in text:
-        parts = text.split("```")
-        for part in parts:
-            if "{" in part:
-                text = part
-                if text.startswith("json"):
-                    text = text[4:]
-                break
-    start = text.find("{")
-    end = text.rfind("}") + 1
-    if start >= 0 and end > start:
-        text = text[start:end]
+SISTEMA = f"Você é especialista em captação de recursos para hospitais filantrópicos.\n\nPERFIL DA INSTITUIÇÃO\n{PERFIL}\n\n{REGUA}"
 
-    result = json.loads(text.strip())
-    return result
+
+def aplicar_travas(resultado, opp):
+    score = max(0, min(100, int(round(float(resultado.get("score", 0))))))
+    if opp.get("aceita_filantropico") == "nao":
+        score = min(score, 39)
+    elif opp.get("aceita_filantropico") == "indefinido":
+        score = min(score, 79)
+    tier = "A" if score >= 80 else "B" if score >= 60 else "C" if score >= 40 else "D"
+    resultado["score"], resultado["tier"] = score, tier
+    return resultado
+
 
 def main():
-    result = supabase.table("opportunities").select(
-        "id, title, description, url"
-    ).execute()
+    sb = c.supabase()
+    opps = sb.table("opportunities").select(
+        "id, title, orgao, resumo, description, publico_elegivel, aceita_filantropico, situacao, deadline, valor"
+    ).not_.is_("lido_em", "null").is_("duplicado_de", "null").neq("situacao", "encerrado").execute().data
+    ja = {q["opportunity_id"] for q in sb.table("qualifications").select("opportunity_id").execute().data}
+    pendentes = [o for o in opps if o["id"] not in ja]
+    print(f"Editais para qualificar: {len(pendentes)}")
 
-    all_opps = result.data
-    qualified_result = supabase.table("qualifications").select("opportunity_id").execute()
-    qualified_ids = {q["opportunity_id"] for q in qualified_result.data}
-    pending = [o for o in all_opps if o["id"] not in qualified_ids]
-
-    print(f"Oportunidades para qualificar: {len(pending)}")
-
-    for opp in pending:
-        print(f"Qualificando: {opp['title'][:60]}...")
+    for o in pendentes:
+        ficha = {
+            "titulo": o["title"], "orgao": o.get("orgao"), "resumo": o.get("resumo") or (o.get("description") or "")[:600],
+            "publico_elegivel": o.get("publico_elegivel"), "aceita_filantropico": o.get("aceita_filantropico"),
+            "situacao": o.get("situacao"), "prazo_inscricao": o.get("deadline"), "valor": o.get("valor"),
+            "hoje": date.today().isoformat(),
+        }
         try:
-            result = qualify_opportunity(
-                opp["title"],
-                opp.get("description") or "",
-                opp.get("url") or ""
+            resposta = c.perguntar(
+                c.MODELO_QUALIFICACAO,
+                "EDITAL\n" + json.dumps(ficha, ensure_ascii=False, indent=1),
+                sistema=SISTEMA, max_tokens=600, cache_sistema=True,
             )
-            supabase.table("qualifications").insert({
-                "opportunity_id": opp["id"],
-                "score": result["score"],
-                "tier": result["tier"],
-                "justification": result["justification"],
-                "matched_areas": result.get("matched_areas", []),
-                "matched_keywords": result.get("matched_keywords", []),
-                "notification_status": "pending",
-                "updated_at": datetime.utcnow().isoformat()
+            r = aplicar_travas(c.extrair_json(resposta), o)
+            sb.table("qualifications").insert({
+                "opportunity_id": o["id"], "score": r["score"], "tier": r["tier"],
+                "justification": r.get("justification"), "matched_areas": r.get("matched_areas", []),
+                "matched_keywords": r.get("matched_keywords", []), "notification_status": "pending",
+                "updated_at": c.agora_iso(),
             }).execute()
-            print(f"  → Tier {result['tier']} | Score {result['score']}")
+            print(f"  {r['tier']} | {r['score']} | {o['title'][:70]}")
         except Exception as e:
-            print(f"  → Erro: {e}")
+            print(f"  erro em '{o['title'][:60]}': {e}")
 
-    print("\nQualificação concluída!")
+    print("\n" + c.resumo_custo())
+
 
 if __name__ == "__main__":
     main()
