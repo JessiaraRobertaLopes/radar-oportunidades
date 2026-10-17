@@ -1,16 +1,22 @@
-name: Radar de Oportunidades
+name: Radar de Oportunidades v2
 
+# Execução manual (botão "Run workflow" no GitHub Actions).
+# Para voltar a rodar sozinho, remova o "#" das 2 linhas de schedule abaixo.
 on:
-  schedule:
-    - cron: '0 8 * * *'
+  # schedule:
+  #   - cron: '0 11 * * 1-5'   # 08h de Brasília, dias úteis
   workflow_dispatch:
+    inputs:
+      max_leituras:
+        description: 'Máximo de editais lidos pela IA nesta execução (controla o custo)'
+        required: true
+        default: '15'
 
 jobs:
-  scrape-and-qualify:
+  captar-e-qualificar:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout código
+      - name: Baixar o código
         uses: actions/checkout@v4
 
       - name: Configurar Python
@@ -19,16 +25,17 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependências
-        run: pip install requests beautifulsoup4 supabase anthropic
+        run: pip install -r requirements.txt
 
-      - name: Executar raspagem
+      - name: Captar editais (descobrir, barrar repetidos e ler)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MAX_LEITURAS: ${{ github.event.inputs.max_leituras || '15' }}
         run: python scraper.py
 
-      - name: Executar qualificação
+      - name: Qualificar editais novos
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
