@@ -150,10 +150,23 @@ def chave_edital(titulo, orgao=None, numero=None, url=None):
 # ---------------------------------------------------------------------
 # Download e leitura
 # ---------------------------------------------------------------------
+CABECALHOS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.6",
+}
+
+
 def baixar(url, timeout=30):
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=timeout, allow_redirects=True)
-    r.raise_for_status()
-    return r
+    """Baixa a página como um navegador comum; tenta 2 vezes se a conexão cair."""
+    for tentativa in range(2):
+        try:
+            r = requests.get(url, headers=CABECALHOS, timeout=timeout, allow_redirects=True)
+            r.raise_for_status()
+            return r
+        except (requests.ConnectionError, requests.Timeout):
+            if tentativa == 1:
+                raise
 
 
 def texto_de_pdf(conteudo, max_paginas=15):
@@ -260,16 +273,18 @@ def evidencia_confere(trecho, texto):
 # IA com resposta JSON
 # ---------------------------------------------------------------------
 def extrair_json(texto):
+    """Lê o primeiro objeto JSON da resposta e ignora qualquer texto depois dele."""
     t = (texto or "").strip()
     if "```" in t:
         for parte in t.split("```"):
             if "{" in parte:
                 t = parte[4:] if parte.startswith("json") else parte
                 break
-    ini, fim = t.find("{"), t.rfind("}") + 1
-    if ini < 0 or fim <= ini:
+    ini = t.find("{")
+    if ini < 0:
         raise ValueError("Resposta da IA sem JSON")
-    return json.loads(t[ini:fim])
+    objeto, _ = json.JSONDecoder().raw_decode(t[ini:])
+    return objeto
 
 
 CUSTO = {"entrada": 0, "saida": 0, "chamadas": 0}
