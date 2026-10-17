@@ -338,20 +338,54 @@ def main():
 # RELEITURA: lê de novo os editais antigos (gravados antes do robô v2)
 # para descobrir prazo e situação reais. Nota antiga é refeita com a régua.
 # ---------------------------------------------------------------------
+# Títulos genéricos que são páginas de menu, não editais
+RE_TITULO_MENU = re.compile(
+    r"^(oportunidades|explorar chamadas|financiamentos?|consulta a financiamentos|chamadas e editais|"
+    r"programas institucionais.*|buscar por oportunidades|- ?conv[eê]nios|editais)$", re.I)
+
+CONFERIR_NO_SITE = "Página não pôde ser lida automaticamente. Conferir prazo e regras no site do edital."
+
+
+def classificar_erro(erro, titulo):
+    """Decide o que fazer com um edital antigo que não pôde ser lido.
+    Retorna (situacao, motivo) ou None para tentar de novo na próxima execução."""
+    texto = str(erro)
+    status = getattr(getattr(erro, "response", None), "status_code", None)
+    if RE_TITULO_MENU.match((titulo or "").strip()):
+        return "encerrado", "Descartado na releitura: página de menu, não é um edital."
+    if status in (404, 410) or status == 401:
+        return "encerrado", "Descartado na releitura: link fora do ar."
+    if "No connection adapters" in texto or "Invalid URL" in texto:
+        return "encerrado", "Descartado na releitura: link inválido."
+    if status == 403 or "sem conteúdo suficiente" in texto:
+        return "indefinido", CONFERIR_NO_SITE
+    return None  # falha momentânea: tenta de novo
+
+
 def releitura():
     sb = c.supabase()
     antigos = sb.table("opportunities").select("id, title, url").is_("lido_em", "null") \
         .is_("duplicado_de", "null").neq("situacao", "encerrado").execute().data
     print(f"Editais antigos para reler: {len(antigos)} (limite nesta execução: {c.MAX_LEITURAS})")
-    contagem = {"atualizados": 0, "encerrados": 0, "nao_edital": 0, "erros": 0}
+    contagem = {"atualizados": 0, "encerrados": 0, "nao_edital": 0, "conferir": 0, "erros": 0}
 
     for o in antigos[: c.MAX_LEITURAS]:
         print(f"\nRelendo: {o['title'][:80]}")
         try:
             lido = ler_edital({"titulo": o["title"], "url": o["url"]})
         except Exception as e:
-            contagem["erros"] += 1
-            print(f"  não foi possível ler (fica para a próxima): {e}")
+            destino = classificar_erro(e, o["title"])
+            if destino is None:
+                contagem["erros"] += 1
+                print(f"  não foi possível ler (fica para a próxima): {e}")
+                continue
+            situacao, motivo = destino
+            sb.table("opportunities").update({
+                "situacao": situacao, "resumo": motivo, "lido_em": c.agora_iso(), "updated_at": c.agora_iso(),
+            }).eq("id", o["id"]).execute()
+            sb.table("qualifications").delete().eq("opportunity_id", o["id"]).execute()
+            contagem["conferir" if situacao == "indefinido" else "encerrados"] += 1
+            print(f"  {motivo} ({e})")
             continue
 
         atualizacao = {
@@ -386,7 +420,8 @@ def releitura():
     restantes = max(0, len(antigos) - c.MAX_LEITURAS)
     print("\n" + "=" * 60)
     print(f"Continuam valendo: {contagem['atualizados']} | Encerrados: {contagem['encerrados']} | "
-          f"Não eram edital: {contagem['nao_edital']} | Erros de leitura: {contagem['erros']}")
+          f"Não eram edital: {contagem['nao_edital']} | Conferir no site: {contagem['conferir']} | "
+          f"Erros (tentar de novo): {contagem['erros']}")
     if restantes:
         print(f"Faltam {restantes} editais: rode a releitura de novo.")
     print(c.resumo_custo())
