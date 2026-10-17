@@ -334,6 +334,68 @@ def main():
     print(c.resumo_custo())
     print("=" * 60)
 
+# ---------------------------------------------------------------------
+# RELEITURA: lê de novo os editais antigos (gravados antes do robô v2)
+# para descobrir prazo e situação reais. Nota antiga é refeita com a régua.
+# ---------------------------------------------------------------------
+def releitura():
+    sb = c.supabase()
+    antigos = sb.table("opportunities").select("id, title, url").is_("lido_em", "null") \
+        .is_("duplicado_de", "null").neq("situacao", "encerrado").execute().data
+    print(f"Editais antigos para reler: {len(antigos)} (limite nesta execução: {c.MAX_LEITURAS})")
+    contagem = {"atualizados": 0, "encerrados": 0, "nao_edital": 0, "erros": 0}
+
+    for o in antigos[: c.MAX_LEITURAS]:
+        print(f"\nRelendo: {o['title'][:80]}")
+        try:
+            lido = ler_edital({"titulo": o["title"], "url": o["url"]})
+        except Exception as e:
+            contagem["erros"] += 1
+            print(f"  não foi possível ler (fica para a próxima): {e}")
+            continue
+
+        atualizacao = {
+            "situacao": lido["situacao"],
+            "deadline": lido["prazo"],
+            "orgao": lido["orgao"],
+            "numero_edital": lido["numero"],
+            "data_abertura": lido["data_abertura"].isoformat() if lido["data_abertura"] else None,
+            "valor": lido["valor"],
+            "publico_elegivel": lido["publico_elegivel"],
+            "aceita_filantropico": lido["aceita_filantropico"],
+            "resumo": lido["resumo"],
+            "evidencias": lido["evidencias"],
+            "link_documento": lido["link_documento"],
+            "lido_em": c.agora_iso(),
+            "updated_at": c.agora_iso(),
+        }
+        if not lido["eh_edital"]:
+            atualizacao["situacao"] = "encerrado"
+            atualizacao["resumo"] = "Descartado na releitura: a página não é um edital."
+            contagem["nao_edital"] += 1
+        elif lido["situacao"] == "encerrado":
+            contagem["encerrados"] += 1
+        else:
+            contagem["atualizados"] += 1
+
+        sb.table("opportunities").update(atualizacao).eq("id", o["id"]).execute()
+        # apaga a nota antiga para o qualifier.py refazer com a régua nova
+        sb.table("qualifications").delete().eq("opportunity_id", o["id"]).execute()
+        print(f"  {atualizacao['situacao']} | prazo {lido['prazo']} | filantrópico: {lido['aceita_filantropico']}")
+
+    restantes = max(0, len(antigos) - c.MAX_LEITURAS)
+    print("\n" + "=" * 60)
+    print(f"Continuam valendo: {contagem['atualizados']} | Encerrados: {contagem['encerrados']} | "
+          f"Não eram edital: {contagem['nao_edital']} | Erros de leitura: {contagem['erros']}")
+    if restantes:
+        print(f"Faltam {restantes} editais: rode a releitura de novo.")
+    print(c.resumo_custo())
+    print("=" * 60)
+
 
 if __name__ == "__main__":
-    main()
+    import os
+    if os.environ.get("MODO", "normal") == "releitura":
+        releitura()
+    else:
+        main()
