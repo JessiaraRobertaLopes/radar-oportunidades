@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Início | Radar de Oportunidades</title>
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="stylesheet" href="assets/css/orix.css">
+<style>
+  .layout { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
+
+  /* ---------- Barra lateral ---------- */
+  .lateral {
+    position: sticky; top: 0; height: 100vh;
+    display: flex; flex-direction: column;
+    background: var(--superficie); border-right: 1px solid var(--borda);
+  }
+  .lateral-topo { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 14px 20px; }
+  .lateral-topo .logo { height: 30px; width: auto; }
+  .fechar-menu { display: none; }
+  .nav { flex: 1; overflow-y: auto; padding: 8px 12px 16px; border-top: 1px solid var(--borda); }
+  .nav-grupo { margin-top: 18px; }
+  .nav-grupo:first-child { margin-top: 10px; }
+  .nav-titulo { padding: 0 10px 6px; font-size: 12px; font-weight: 600; color: var(--texto-3); }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    height: 36px; padding: 0 10px; border-radius: var(--raio-sm);
+    color: var(--texto); font-weight: 500; font-size: 14px;
+  }
+  .nav-item:hover { background: var(--superficie-2); text-decoration: none; }
+  .nav-item svg { width: 18px; height: 18px; color: var(--texto-2); flex-shrink: 0; }
+  .nav-item[aria-current="page"] { background: var(--acento-suave); color: var(--acento); font-weight: 600; }
+  .nav-item[aria-current="page"] svg { color: var(--acento); }
+
+  .lateral-rodape { border-top: 1px solid var(--borda); padding: 12px; display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--acento-suave); color: var(--acento); font-weight: 700; font-size: 14px;
+  }
+  .usuario { flex: 1; min-width: 0; line-height: 1.3; }
+  .usuario strong { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .usuario span { display: block; font-size: 12px; color: var(--texto-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- Área principal ---------- */
+  .principal { min-width: 0; position: relative; z-index: 1; }
+  .lateral { z-index: 2; }
+  .coracao-fundo { width: min(48vw, 640px); right: -120px; bottom: -150px; }
+  @media (max-width: 900px) { .coracao-fundo { width: 380px; right: -110px; bottom: -90px; } }
+  .barra-mobile { display: none; }
+  .conteudo { max-width: 1240px; padding: 32px 40px 48px; }
+  .cabecalho { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cabecalho p { margin-top: 2px; }
+  .busca-geral { margin-top: 24px; }
+  .busca-geral .entrada { height: 44px; font-size: 15px; }
+  .secao { margin-top: 36px; }
+  .secao > h2 { margin-bottom: 14px; }
+  .painel-abas { margin-top: 14px; }
+
+  /* ---------- Responsivo ---------- */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .lateral {
+      position: fixed; inset: 0 auto 0 0; width: 280px; z-index: 30;
+      transform: translateX(-100%); transition: transform .2s ease;
+      box-shadow: var(--sombra);
+    }
+    .lateral.aberta { transform: none; }
+    .fechar-menu { display: inline-flex; }
+    .veu { position: fixed; inset: 0; background: rgba(15, 23, 42, .35); z-index: 20; }
+    .barra-mobile {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; background: var(--superficie); border-bottom: 1px solid var(--borda);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .barra-mobile .logo { height: 26px; width: auto; }
+    .conteudo { padding: 20px 16px 32px; }
+  }
+
+
+  /* ---------- Menu recolhível (computador) ---------- */
+  .layout { transition: grid-template-columns .3s ease; }
+  .simbolo-mini { display: none; width: 30px; height: auto; }
+  :root[data-theme="dark"] .simbolo-mini { filter: brightness(0) invert(1); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .simbolo-mini { filter: brightness(0) invert(1); } }
+  .layout.recolhido { grid-template-columns: 72px minmax(0, 1fr); }
+  .recolhido .lateral-topo { flex-direction: column; gap: 10px; padding: 16px 8px 12px; }
+  .recolhido .lateral-topo .logo { display: none !important; }
+  .recolhido .simbolo-mini { display: block; }
+  .recolhido .rotulo, .recolhido .nav-titulo, .recolhido .usuario, .recolhido .em-breve { display: none; }
+  .recolhido .nav { padding: 8px; }
+  .recolhido .nav-grupo { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--borda); }
+  .recolhido .nav-grupo:first-child { border-top: 0; padding-top: 0; }
+  .recolhido .nav-item { justify-content: center; padding: 0; }
+  .recolhido .lateral-rodape { flex-direction: column; padding: 12px 8px; }
+  @media (max-width: 900px) {
+    .btn-recolher { display: none; }
+    .layout.recolhido { grid-template-columns: 1fr; }
+  }
+
+  .carregando-tela { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: var(--texto-3); }
+</style>
+</head>
+<body>
+<div class="carregando-tela" id="carregando">Carregando</div>
+
+<div id="tela" class="oculto">
+<img class="coracao-fundo" src="assets/img/coracao-orix.svg" alt="" aria-hidden="true">
+<div class="layout" id="layout">
+
+  <!-- Barra lateral -->
+  <aside class="lateral" id="lateral" aria-label="Menu principal">
+    <div class="lateral-topo">
+      <img class="logo logo-claro" src="assets/img/logo-orixlab.png" alt="Orix Lab Santa Casa BH">
+      <img class="logo logo-escuro" src="assets/img/logo-orixlab-branco.png" alt="Orix Lab Santa Casa BH">
+      <img class="simbolo-mini" src="assets/img/coracao-orix.svg" alt="Orix Lab">
+      <button class="btn-icone btn-recolher" type="button" id="btn-recolher" aria-label="Recolher menu" title="Recolher menu"></button>
+      <button class="btn-icone fechar-menu" type="button" id="btn-fechar-menu" aria-label="Fechar menu"><span data-icone="fechar"></span></button>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-grupo">
+        <div class="nav-titulo">Captação</div>
+        <a class="nav-item" href="#inicio" data-destino="inicio" title="Início"><span data-icone="casa"></span><span class="rotulo">Início</span></a>
+        <a class="nav-item" href="#editais" data-destino="editais" title="Editais"><span data-icone="documento"></span><span class="rotulo">Editais</span></a>
+        <a class="nav-item" href="#gestao" data-destino="gestao" title="Gestão"><span data-icone="pipeline"></span><span class="rotulo">Gestão</span></a>
+        <a class="nav-item" href="#busca-ia" data-destino="busca-ia" title="Busca com IA"><span data-icone="ia"></span><span class="rotulo">Busca com IA</span></a>
+        <a class="nav-item" aria-disabled="true" href="#privados" title="Editais privados"><span data-icone="predio"></span><span class="rotulo">Editais privados</span><span class="em-breve">Em breve</span></a>
+      </div>
+      <div class="nav-grupo">
+        <div class="nav-titulo">Análise</div>
+        <a class="nav-item" href="#dashboard" data-destino="dashboard" title="Dashboard"><span data-icone="grafico"></span><span class="rotulo">Dashboard</span></a>
+        <a class="nav-item" href="#noticias" data-destino="noticias" title="Notícias pré-edital"><span data-icone="sino"></span><span class="rotulo">Notícias</span></a>
+        <a class="nav-item" href="#arquivo" data-destino="arquivo" title="Arquivo de expirados"><span data-icone="arquivo"></span><span class="rotulo">Arquivo</span></a>
+      </div>
+      <div class="nav-grupo oculto" id="nav-admin">
+        <div class="nav-titulo">Administração</div>
+        <a class="nav-item" aria-disabled="true" href="#usuarios" title="Usuários"><span data-icone="usuarios"></span><span class="rotulo">Usuários</span><span class="em-breve">Em breve</span></a>
+        <a class="nav-item" aria-disabled="true" href="#auditoria" title="Auditoria"><span data-icone="historico"></span><span class="rotulo">Auditoria</span><span class="em-breve">Em breve</span></a>
+      </div>
+    </nav>
+
+    <div class="lateral-rodape">
+      <div class="avatar" id="u-avatar" aria-hidden="true"></div>
+      <div class="usuario">
+        <strong id="u-nome"></strong>
+        <span id="u-papel"></span>
+        <span id="f-email" class="sr"></span>
+      </div>
+      <button class="btn-icone" type="button" data-acao="tema"></button>
+      <button class="btn-icone" type="button" id="btn-sair" aria-label="Sair"></button>
+    </div>
+  </aside>
+  <div class="veu oculto" id="veu"></div>
+
+  <!-- Principal -->
+  <div class="principal">
+    <div class="barra-mobile">
+      <button class="btn-icone" type="button" id="btn-menu" aria-label="Abrir menu"><span data-icone="menu"></span></button>
+      <img class="logo logo-claro" src="assets/img/logo-orixlab.png" alt="Orix Lab Santa Casa BH">
+      <img class="logo logo-escuro" src="assets/img/logo-orixlab-branco.png" alt="Orix Lab Santa Casa BH">
+      <button class="btn-icone" type="button" data-acao="tema"></button>
+    </div>
+
+    <main class="conteudo">
+      <section data-tela="inicio">
+      <div class="cabecalho anima">
+        <div>
+          <h1 class="titulo-xl">Início</h1>
+          <p class="texto-2">Olá, <span id="saudacao"></span> Veja o que mudou no Radar.</p>
+        </div>
+        <span class="selo" id="f-papel"></span>
+      </div>
+
+      <div class="busca busca-geral anima" style="--atraso:100ms">
+        <span data-icone="lupa"></span>
+        <input class="entrada" id="busca-geral" type="search" placeholder="Buscar editais, fontes, áreas ou palavras-chave" aria-label="Buscar no Radar">
+      </div>
+
+      <section class="secao">
+        <h2 class="titulo-l anima" style="--atraso:180ms">Ações rápidas</h2>
+        <div class="acoes-rapidas cascata" style="--atraso:240ms">
+          <a class="acao-rapida" href="#busca-ia">
+            <span class="ic" data-icone="ia"></span>
+            <strong>Buscar com IA</strong>
+            <span>Descreva um projeto e encontre editais aderentes</span>
+          </a>
+          <a class="acao-rapida" href="#oportunidades" id="acao-prioridade-a">
+            <span class="ic" data-icone="alerta2"></span>
+            <strong>Prioridade A</strong>
+            <span>Editais com 80% ou mais de aderência</span>
+          </a>
+          <a class="acao-rapida" href="#gestao">
+            <span class="ic" data-icone="pipeline"></span>
+            <strong>Minha gestão</strong>
+            <span>Editais sob sua responsabilidade</span>
+          </a>
+          <a class="acao-rapida" href="#dashboard">
+            <span class="ic" data-icone="grafico"></span>
+            <strong>Indicadores</strong>
+            <span>Captação, prazos e uso da IA no período</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="secao">
+        <h2 class="titulo-l anima" style="--atraso:500ms" id="oportunidades">Oportunidades</h2>
+        <div class="tabs anima" style="--atraso:540ms" role="tablist" id="abas-oportunidades">
+          <button class="tab" role="tab" aria-selected="true" type="button" data-aba="recentes">Recentes</button>
+          <button class="tab" role="tab" aria-selected="false" type="button" data-aba="prioridade-a">Prioridade A</button>
+          <button class="tab" role="tab" aria-selected="false" type="button" data-aba="prazo">Prazo em 7 dias</button>
+          <button class="tab" role="tab" aria-selected="false" type="button" data-aba="em-analise">Em análise</button>
+          <button class="tab" role="tab" aria-selected="false" type="button" data-aba="fluxo-continuo">Fluxo contínuo</button>
+        </div>
+        <div class="painel-abas" id="lista-oportunidades">
+          <div class="lista-editais">
+            <div class="esqueleto"></div>
+            <div class="esqueleto"></div>
+            <div class="esqueleto"></div>
+          </div>
+        </div>
+      </section>
+      </section>
+
+      <!-- EDITAIS -->
+      <section data-tela="editais" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Editais</h1>
+          <p class="texto-2">Todas as oportunidades ativas encontradas pelo Radar.</p></div></div>
+        <div class="filtros anima" style="--atraso:80ms">
+          <div class="busca filtro-busca"><span data-icone="lupa"></span>
+            <input class="entrada" id="ed-busca" type="search" placeholder="Buscar por título, órgão ou área" aria-label="Buscar editais"></div>
+          <select class="entrada" id="ed-prioridade" aria-label="Prioridade"><option value="">Todas as prioridades</option><option value="A">Prioridade A</option><option value="B">Prioridade B</option><option value="C">Prioridade C</option><option value="D">Prioridade D</option></select>
+          <select class="entrada" id="ed-situacao" aria-label="Situação"><option value="">Todas as situações</option><option value="aberto">Inscrições abertas</option><option value="fluxo_continuo">Fluxo contínuo</option><option value="indefinido">Situação não confirmada</option></select>
+          <select class="entrada" id="ed-status" aria-label="Status da gestão"><option value="">Todos os status</option><option value="novo">Novo</option><option value="em_analise">Em análise</option><option value="inscrito">Inscrito</option><option value="aprovado">Aprovado</option><option value="reprovado">Reprovado</option><option value="descartado">Descartado</option></select>
+          <select class="entrada" id="ed-ordem" aria-label="Ordenar"><option value="aderencia">Maior aderência</option><option value="prazo">Prazo mais próximo</option><option value="recentes">Mais recentes</option></select>
+        </div>
+        <p class="texto-3 contagem" id="ed-contagem"></p>
+        <div id="ed-lista"></div>
+      </section>
+
+      <!-- GESTÃO -->
+      <section data-tela="gestao" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Gestão</h1>
+          <p class="texto-2">Editais em acompanhamento pela equipe. Para incluir um edital aqui, abra o edital e mude o status.</p></div>
+          <div class="abas abas-compactas" role="tablist" id="ge-filtro">
+            <button class="aba" role="tab" type="button" aria-selected="true" data-meus="nao">Todos</button>
+            <button class="aba" role="tab" type="button" aria-selected="false" data-meus="sim">Só os meus</button>
+          </div></div>
+        <div class="quadro anima" style="--atraso:80ms" id="ge-quadro"></div>
+      </section>
+
+      <!-- ARQUIVO -->
+      <section data-tela="arquivo" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Arquivo</h1>
+          <p class="texto-2">Editais encerrados ou com prazo vencido, guardados para consulta e histórico.</p></div></div>
+        <div class="filtros anima" style="--atraso:80ms">
+          <div class="busca filtro-busca"><span data-icone="lupa"></span>
+            <input class="entrada" id="ar-busca" type="search" placeholder="Buscar no arquivo" aria-label="Buscar no arquivo"></div>
+        </div>
+        <p class="texto-3 contagem" id="ar-contagem"></p>
+        <div id="ar-lista"></div>
+      </section>
+
+
+      <!-- BUSCA COM IA -->
+      <section data-tela="busca-ia" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Busca com IA</h1>
+          <p class="texto-2">Descreva um projeto e a IA indica os editais que podem financiá-lo.</p></div></div>
+        <div class="busca-ia-grade">
+          <div>
+            <form id="ia-form" class="cartao ia-form anima" style="--atraso:80ms" novalidate>
+              <div class="campo"><label for="ia-pergunta">Qual projeto você quer financiar?</label>
+                <textarea class="entrada" id="ia-pergunta" rows="4" maxlength="2000" placeholder="Ex.: compra de equipamentos para ampliar a UTI neonatal, com 10 novos leitos SUS"></textarea></div>
+              <div class="chips" id="ia-exemplos" aria-label="Exemplos de projeto"></div>
+              <label class="ia-web"><input type="checkbox" id="ia-web">
+                <span><strong>Incluir busca na web</strong><small class="texto-3">Mais completa, porém mais lenta (cerca de 30 segundos) e com custo maior de IA.</small></span></label>
+              <div class="g-form-acoes"><button class="btn btn-primario" type="submit" id="ia-buscar">Buscar editais</button></div>
+            </form>
+            <div id="ia-msg" style="margin-top:14px"></div>
+            <div id="ia-resultados"></div>
+          </div>
+          <aside class="cartao ia-historico-caixa anima" style="--atraso:140ms">
+            <h2 class="titulo-m">Minhas buscas</h2>
+            <div id="ia-historico" class="ia-historico"></div>
+          </aside>
+        </div>
+      </section>
+
+
+      <!-- NOTÍCIAS PRÉ-EDITAL -->
+      <section data-tela="noticias" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Notícias pré-edital</h1>
+          <p class="texto-2">O que a imprensa anuncia antes de o edital abrir. Selecionado pela IA a partir do Google Notícias.</p></div></div>
+        <div class="filtros-nt anima" style="--atraso:80ms">
+          <div class="chips" id="nt-filtros" role="group" aria-label="Filtrar por tipo">
+            <button class="selo selo-neutro chip" type="button" data-tipo="todas" aria-pressed="true">Todas</button>
+            <button class="selo selo-neutro chip" type="button" data-tipo="pre_edital" aria-pressed="false">Pré-edital</button>
+            <button class="selo selo-neutro chip" type="button" data-tipo="edital_aberto" aria-pressed="false">Edital aberto</button>
+            <button class="selo selo-neutro chip" type="button" data-tipo="programa" aria-pressed="false">Programa</button>
+          </div>
+          <span class="texto-3" id="nt-contagem"></span>
+        </div>
+        <p class="aviso-nt texto-3">Notícia não é edital: confirme no site do órgão antes de agir.</p>
+        <div class="lista-editais" id="nt-lista"></div>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section data-tela="dashboard" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Dashboard</h1>
+          <p class="texto-2">Retrato do Radar e da captação da equipe hoje.</p></div></div>
+        <div class="kpis cascata" id="db-kpis"></div>
+        <div class="graficos">
+          <section class="cartao painel-grafico anima" style="--atraso:200ms"><h2 class="titulo-m">Gestão por etapa</h2><div id="db-etapas"></div></section>
+          <section class="cartao painel-grafico anima" style="--atraso:260ms"><h2 class="titulo-m">Oportunidades ativas por prioridade</h2><div id="db-prioridades"></div></section>
+          <section class="cartao painel-grafico anima" style="--atraso:320ms"><h2 class="titulo-m">Próximos prazos</h2><div id="db-prazos"></div></section>
+          <section class="cartao painel-grafico anima" style="--atraso:380ms"><h2 class="titulo-m">Principais órgãos</h2><div id="db-fontes"></div></section>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/base.js"></script>
+<script src="assets/js/editais.js"></script>
+<script src="assets/js/detalhe.js"></script>
+<script src="assets/js/telas.js"></script>
+<script>
+(async () => {
+  const sessao = await Radar.exigirLogin();
+  if (!sessao) return;
+  const { perfil } = sessao;
+  const papel = perfil.papel === 'admin' ? 'Administração' : 'Captação de Recursos';
+  const primeiroNome = (perfil.nome || '').split(' ')[0];
+
+  document.getElementById('u-nome').textContent = perfil.nome;
+  document.getElementById('u-papel').textContent = papel;
+  document.getElementById('u-avatar').textContent = (perfil.nome || '?').trim().charAt(0).toUpperCase();
+  document.getElementById('saudacao').textContent = primeiroNome + '.';
+  document.getElementById('f-email').textContent = perfil.email;
+  document.getElementById('f-papel').textContent = papel;
+  if (perfil.papel === 'admin') document.getElementById('nav-admin').classList.remove('oculto');
+
+  const sair = document.getElementById('btn-sair');
+  sair.innerHTML = Radar.ICONES.sair;
+  sair.addEventListener('click', Radar.sair);
+
+
+  // Menu recolhível (lembra a escolha neste navegador)
+  const layout = document.getElementById('layout');
+  const btnRecolher = document.getElementById('btn-recolher');
+  const aplicarRecolhido = recolhido => {
+    layout.classList.toggle('recolhido', recolhido);
+    btnRecolher.innerHTML = recolhido ? Radar.ICONES.expandir : Radar.ICONES.recolher;
+    const rotulo = recolhido ? 'Expandir menu' : 'Recolher menu';
+    btnRecolher.setAttribute('aria-label', rotulo);
+    btnRecolher.title = rotulo;
+  };
+  let recolhido = false;
+  try { recolhido = localStorage.getItem('radar-menu') === 'recolhido'; } catch (e) {}
+  aplicarRecolhido(recolhido);
+  btnRecolher.addEventListener('click', () => {
+    recolhido = !layout.classList.contains('recolhido');
+    aplicarRecolhido(recolhido);
+    try { localStorage.setItem('radar-menu', recolhido ? 'recolhido' : 'aberto'); } catch (e) {}
+  });
+
+  // Menu no celular
+  const lateral = document.getElementById('lateral');
+  const veu = document.getElementById('veu');
+  const abrirMenu = aberto => { lateral.classList.toggle('aberta', aberto); veu.classList.toggle('oculto', !aberto); };
+  document.getElementById('btn-menu').addEventListener('click', () => abrirMenu(true));
+  document.getElementById('btn-fechar-menu').addEventListener('click', () => abrirMenu(false));
+  veu.addEventListener('click', () => abrirMenu(false));
+  document.querySelectorAll('.nav-item[data-destino]').forEach(a => a.addEventListener('click', () => abrirMenu(false)));
+
+  document.getElementById('carregando').classList.add('oculto');
+  document.getElementById('tela').classList.remove('oculto');
+
+  // ---------- Editais ----------
+  const esc = Radar.escapar;
+  const I = Radar.ICONES;
+  const lista = document.getElementById('lista-oportunidades');
+  const abas = [...document.querySelectorAll('#abas-oportunidades .tab')];
+  const campoBusca = document.getElementById('busca-geral');
+  const NOME_PRIORIDADE = { A: 'Alta', B: 'Boa', C: 'Média', D: 'Baixa' };
+  let editais = [];
+  let abaAtual = 'recentes';
+
+  function textoPrazo(e) {
+    if (e.situacao === 'fluxo_continuo') return { txt: 'Fluxo contínuo', cls: '' };
+    if (e.dias === null) return { txt: 'Sem prazo informado', cls: '' };
+    if (e.dias === 0) return { txt: 'Vence hoje', cls: 'urgente' };
+    if (e.dias <= 7) return { txt: `Vence em ${e.dias} dia${e.dias > 1 ? 's' : ''}`, cls: 'urgente' };
+    return { txt: new Date(e.prazo).toLocaleDateString('pt-BR', { timeZone: 'UTC' }), cls: '' };
+  }
+
+  function cardEdital(e) {
+    const p = textoPrazo(e);
+    const tags = e.areas.slice(0, 3).map(a => `<span class="selo selo-neutro">${esc(a)}</span>`).join('');
+    const status = e.status !== 'novo' ? `<span class="selo">${esc(Editais.ROTULO_STATUS[e.status] || e.status)}</span>` : '';
+    const conferir = (e.resumo || '').startsWith('Página não pôde ser lida') ? '<span class="selo selo-neutro" title="O robô não conseguiu ler esta página. Confira prazo e regras no site.">Conferir no site</span>' : '';
+    return `
+      <button class="edital cartao-interativo" type="button" data-id="${esc(e.id)}" title="Ver detalhes">
+        <div class="edital-prioridade p-${esc(e.prioridade)}">
+          <strong>${esc(e.prioridade)}</strong><span>${esc(NOME_PRIORIDADE[e.prioridade] || '')}</span>
+        </div>
+        <div>
+          <div class="edital-titulo">${esc(e.titulo)}</div>
+          <div class="edital-fonte">${I.predio}${esc(e.fonte)}</div>
+          <div class="aderencia">
+            <div class="aderencia-barra"><i style="width:${Math.min(100, Math.max(0, e.aderencia))}%"></i></div>
+            <span class="aderencia-valor">${e.aderencia}% de aderência</span>
+          </div>
+          ${tags ? `<div class="edital-tags">${tags}</div>` : ''}
+        </div>
+        <div class="edital-lateral">
+          <span class="prazo ${p.cls}">${p.cls ? I.relogio : I.calendario}${esc(p.txt)}</span>
+          ${status}
+          ${conferir}
+        </div>
+      </button>`;
+  }
+
+  function estadoVazio(titulo, texto) {
+    return `
+      <div class="vazio">
+        <div class="ic">${I.documento}</div>
+        <h3 class="titulo-m">${esc(titulo)}</h3>
+        <p>${esc(texto)}</p>
+      </div>`;
+  }
+
+  function atualizarContadores() {
+    abas.forEach(tab => {
+      const qtd = Editais.VISOES[tab.dataset.aba](editais).length;
+      let c = tab.querySelector('.contador');
+      if (!c) { c = document.createElement('span'); c.className = 'contador'; tab.appendChild(c); }
+      c.textContent = qtd;
+    });
+  }
+
+  function renderizar() {
+    const visao = Editais.VISOES[abaAtual](editais);
+    const filtrados = Editais.filtrarTexto(visao, campoBusca.value);
+    if (!filtrados.length) {
+      lista.innerHTML = campoBusca.value.trim()
+        ? estadoVazio('Nada encontrado', 'Nenhum edital desta aba corresponde à sua busca. Tente outra palavra.')
+        : estadoVazio('Nenhuma oportunidade nesta visão', 'Os editais encontrados pelo monitoramento aparecem aqui, organizados por aderência e prazo.');
+      return;
+    }
+    lista.innerHTML = `<div class="lista-editais cascata">${filtrados.slice(0, 60).map(cardEdital).join('')}</div>`;
+  }
+
+  abas.forEach(tab => {
+    tab.addEventListener('click', () => {
+      abaAtual = tab.dataset.aba;
+      abas.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+      renderizar();
+    });
+  });
+  campoBusca.addEventListener('input', renderizar);
+
+  lista.addEventListener('click', ev => {
+    const card = ev.target.closest('.edital');
+    if (!card) return;
+    const e = editais.find(x => String(x.id) === card.dataset.id);
+    if (e) Detalhe.abrir(e, card);
+  });
+
+  // Itens "Em breve" não navegam
+  document.querySelectorAll('[aria-disabled="true"]').forEach(el => el.addEventListener('click', ev => ev.preventDefault()));
+
+  // Ação rápida Prioridade A: abre a aba correspondente
+  document.getElementById('acao-prioridade-a').addEventListener('click', ev => {
+    ev.preventDefault();
+    abas.find(t => t.dataset.aba === 'prioridade-a').click();
+    document.getElementById('oportunidades').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  Detalhe.iniciar({ perfil, quandoSalvar: () => { atualizarContadores(); renderizar(); Telas.atualizar(); } });
+  window.App = { editais: () => editais, cardEdital, perfil: () => perfil };
+  Telas.iniciar(window.App);
+
+  try {
+    editais = await Editais.carregar();
+    atualizarContadores();
+    renderizar();
+    Telas.atualizar();
+  } catch (err) {
+    console.error('[Radar] erro ao carregar editais:', err);
+    lista.innerHTML = `
+      <div class="alerta alerta-erro">${I.alerta}
+        <span>Não foi possível carregar os editais agora. Recarregue a página em instantes.
+        <small style="display:block;margin-top:4px;font-size:12px;color:var(--texto-2)">Detalhe técnico: ${esc([err.code, err.message].filter(Boolean).join(' | '))}</small></span>
+      </div>`;
+  }
+})();
+</script>
+</body>
+</html>

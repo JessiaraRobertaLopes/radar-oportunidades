@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrar | Radar de Oportunidades</title>
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="stylesheet" href="assets/css/orix.css">
+<style>
+  .pagina { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+  .coracao-fundo { width: min(62vw, 760px); left: -140px; bottom: -160px; }
+  @media (max-width: 900px) { .coracao-fundo { width: 420px; left: -110px; bottom: -90px; } }
+
+  /* Topo */
+  .topo { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; }
+  .topo .logo { height: 34px; width: auto; }
+
+  /* Título central */
+  .hero { text-align: center; padding: 28px 24px 8px; }
+  .hero p { margin-top: 12px; font-size: 16px; font-weight: 500; color: var(--texto); }
+
+  /* Duas colunas */
+  .corpo {
+    flex: 1;
+    width: 100%; max-width: 1120px; margin: 0 auto;
+    padding: 40px 32px 48px;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+    gap: 64px; align-items: center;
+  }
+
+  /* Coluna de apresentação */
+  .apresentacao h2 { font-size: 26px; font-weight: 700; line-height: 1.25; }
+  .apresentacao .sub { margin-top: 6px; font-size: 15px; font-weight: 600; }
+  .recursos { list-style: none; display: grid; gap: 18px; margin-top: 28px; }
+  .recursos li { display: flex; gap: 14px; align-items: flex-start; font-size: 15px; color: var(--texto-2); }
+  .recursos li::before {
+    content: ''; flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m8 12 3 3 5-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  /* Título do login: caixa alta e baixa, tracking negativo */
+  .hero .titulo-display { text-transform: none; letter-spacing: -0.02em; }
+  /* Abas Entrar / Criar conta com cantos discretos */
+  .abas { border-radius: var(--raio); }
+  .aba { border-radius: var(--raio-sm); }
+  .garantias { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+  .garantia {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 12px; font-size: 13px; color: var(--texto-2);
+    background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio);
+  }
+  .garantia svg { width: 16px; height: 16px; color: var(--texto-3); }
+  #link-esqueci { color: var(--texto-2); }
+  #link-esqueci:hover { color: var(--texto); }
+
+  /* Cartão do formulário */
+  .caixa { padding: 32px; }
+  .cabecalho-form { margin-bottom: 20px; }
+  .cabecalho-form h2 { font-size: 18px; font-weight: 600; }
+  .cabecalho-form p { margin-top: 4px; }
+  form { display: grid; gap: 16px; }
+  .linha-extra { display: flex; justify-content: flex-end; margin-top: -6px; }
+  #mensagem:not(:empty) { margin-bottom: 16px; }
+  .detalhe-tecnico { display: block; margin-top: 4px; font-size: 12px; color: var(--texto-2); word-break: break-word; }
+  .aviso-form { margin-top: 18px; text-align: center; font-size: 12px; color: var(--texto-3); }
+
+  .rodape {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    padding: 18px 32px; border-top: 1px solid var(--borda); background: var(--superficie);
+    font-size: 13px; color: var(--texto-3);
+  }
+
+  @media (max-width: 900px) {
+    .topo { padding: 16px; }
+    .topo .logo { height: 28px; }
+    .hero { padding: 12px 16px 0; }
+    .hero p { font-size: 14px; }
+    .corpo { grid-template-columns: 1fr; gap: 28px; padding: 24px 16px 32px; }
+    .apresentacao { order: 2; }
+    .caixa { padding: 24px 20px; }
+    .rodape { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<img class="coracao-fundo" src="assets/img/coracao-orix.svg" alt="" aria-hidden="true">
+<div class="pagina">
+
+  <header class="topo">
+    <div>
+      <img class="logo logo-claro" src="assets/img/logo-orixlab.png" alt="Orix Lab Santa Casa BH">
+      <img class="logo logo-escuro" src="assets/img/logo-orixlab-branco.png" alt="Orix Lab Santa Casa BH">
+    </div>
+    <button class="btn-icone" type="button" data-acao="tema"></button>
+  </header>
+
+  <section class="hero">
+    <h1 class="titulo-display anima"><span class="marca-texto">Nenhum edital</span> passa despercebido</h1>
+    <p class="anima" style="--atraso:120ms">Plataforma de inteligência para captação de recursos</p>
+  </section>
+
+  <main class="corpo">
+
+    <!-- Apresentação -->
+    <section class="apresentacao" aria-label="Sobre o Radar">
+      <h2 class="anima" style="--atraso:220ms">Radar de Oportunidades</h2>
+      <p class="sub anima" style="--atraso:280ms">Do edital encontrado ao recurso captado, em um só fluxo</p>
+      <ul class="recursos cascata" style="--atraso:360ms">
+        <li>Monitoramento automático de editais públicos e privados</li>
+        <li>Aderência calculada por IA a partir do perfil da sua instituição</li>
+        <li>Gestão compartilhada dos editais, com status, responsáveis e prazos</li>
+        <li>Alertas das melhores oportunidades para a equipe</li>
+      </ul>
+      <div class="garantias cascata" style="--atraso:680ms">
+        <span class="garantia"><span data-icone="escudo"></span>Acesso restrito à sua instituição</span>
+        <span class="garantia"><span data-icone="cadeado"></span>Dados protegidos conforme a LGPD</span>
+      </div>
+    </section>
+
+    <!-- Formulários -->
+    <section class="cartao caixa anima" style="--atraso:300ms" aria-label="Acesso">
+      <div class="cabecalho-form">
+        <h2 id="titulo-form">Acesse sua conta</h2>
+        <p class="texto-2 oculto" id="subtitulo-form"></p>
+      </div>
+
+      <div id="mensagem" role="status" aria-live="polite"></div>
+
+      <div class="abas" role="tablist" id="abas" style="margin-bottom:20px">
+        <button class="aba" role="tab" id="aba-entrar" aria-selected="true" aria-controls="form-entrar" type="button">Entrar</button>
+        <button class="aba" role="tab" id="aba-cadastro" aria-selected="false" aria-controls="form-cadastro" type="button">Criar conta</button>
+      </div>
+
+      <!-- Entrar -->
+      <form id="form-entrar" novalidate>
+        <div class="campo">
+          <label for="entrar-email">E-mail institucional</label>
+          <input class="entrada" id="entrar-email" type="email" autocomplete="username" placeholder="nome@santacasabh.org.br" required>
+        </div>
+        <div class="campo">
+          <label for="entrar-senha">Senha</label>
+          <div class="campo-senha">
+            <input class="entrada" id="entrar-senha" type="password" autocomplete="current-password" required>
+            <button class="ver-senha" type="button" data-alvo="entrar-senha" aria-label="Mostrar senha"></button>
+          </div>
+        </div>
+        <div class="linha-extra">
+          <button class="btn btn-fantasma" type="button" id="link-esqueci">Esqueci minha senha</button>
+        </div>
+        <button class="btn btn-primario btn-bloco" type="submit" id="btn-entrar">Entrar</button>
+      </form>
+
+      <!-- Criar conta -->
+      <form id="form-cadastro" class="oculto" novalidate>
+        <div class="campo">
+          <label for="cad-nome">Nome completo</label>
+          <input class="entrada" id="cad-nome" type="text" autocomplete="name" required maxlength="120">
+        </div>
+        <div class="campo">
+          <label for="cad-email">E-mail institucional</label>
+          <input class="entrada" id="cad-email" type="email" autocomplete="email" placeholder="nome@santacasabh.org.br" required>
+        </div>
+        <div class="campo">
+          <label for="cad-senha">Crie uma senha</label>
+          <div class="campo-senha">
+            <input class="entrada" id="cad-senha" type="password" autocomplete="new-password" required minlength="8">
+            <button class="ver-senha" type="button" data-alvo="cad-senha" aria-label="Mostrar senha"></button>
+          </div>
+          <span class="dica">Mínimo de 8 caracteres.</span>
+        </div>
+        <div class="campo">
+          <label for="cad-senha2">Repita a senha</label>
+          <div class="campo-senha">
+            <input class="entrada" id="cad-senha2" type="password" autocomplete="new-password" required>
+            <button class="ver-senha" type="button" data-alvo="cad-senha2" aria-label="Mostrar senha"></button>
+          </div>
+        </div>
+        <button class="btn btn-primario btn-bloco" type="submit" id="btn-cadastrar">Criar conta</button>
+      </form>
+
+      <!-- Esqueci a senha -->
+      <form id="form-recuperar" class="oculto" novalidate>
+        <div class="campo">
+          <label for="rec-email">E-mail institucional</label>
+          <input class="entrada" id="rec-email" type="email" autocomplete="email" placeholder="nome@santacasabh.org.br" required>
+        </div>
+        <button class="btn btn-primario btn-bloco" type="submit" id="btn-recuperar">Enviar link de redefinição</button>
+        <button class="btn btn-secundario btn-bloco" type="button" id="voltar-entrar">Voltar para o login</button>
+      </form>
+
+      <!-- Nova senha (chega pelo link do e-mail) -->
+      <form id="form-nova-senha" class="oculto" novalidate>
+        <div class="campo">
+          <label for="nova-senha">Nova senha</label>
+          <div class="campo-senha">
+            <input class="entrada" id="nova-senha" type="password" autocomplete="new-password" required minlength="8">
+            <button class="ver-senha" type="button" data-alvo="nova-senha" aria-label="Mostrar senha"></button>
+          </div>
+          <span class="dica">Mínimo de 8 caracteres.</span>
+        </div>
+        <div class="campo">
+          <label for="nova-senha2">Repita a nova senha</label>
+          <div class="campo-senha">
+            <input class="entrada" id="nova-senha2" type="password" autocomplete="new-password" required>
+            <button class="ver-senha" type="button" data-alvo="nova-senha2" aria-label="Mostrar senha"></button>
+          </div>
+        </div>
+        <button class="btn btn-primario btn-bloco" type="submit" id="btn-nova-senha">Salvar nova senha</button>
+      </form>
+
+      <p class="aviso-form">Acesso exclusivo para colaboradores autorizados</p>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <span>Orix Lab · Santa Casa BH</span>
+    <span>Saúde de ponta para todos</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/base.js"></script>
+<script src="assets/js/login.js"></script>
+</body>
+</html>
