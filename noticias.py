@@ -7,13 +7,14 @@ financiamento útil para a Santa Casa BH, e grava na tabela "noticias".
 Custo: só a IA lendo manchetes (centavos por execução).
 """
 import os
+import re
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus
 
-from comum import (MODELO_LEITURA, agora_iso, baixar, extrair_json, normalizar_texto,
-                   perguntar, resumo_custo, supabase)
+from comum import (MODELO_LEITURA, agora_iso, baixar, data_valida, extrair_json,
+                   normalizar_texto, perguntar, resumo_custo, supabase)
 
 DIAS = int(os.environ.get("NOTICIAS_DIAS", "14"))           # janela de notícias
 MAX_MANCHETES = int(os.environ.get("NOTICIAS_MAX", "120"))   # limite enviado à IA
@@ -36,24 +37,37 @@ PERFIL = ("Santa Casa BH: hospital filantrópico 100% SUS de Belo Horizonte (MG)
           "de Minas Gerais, com ensino, residência e pesquisa clínica. Capta recursos por editais, "
           "chamamentos, emendas parlamentares, programas federais e estaduais, fundações e empresas.")
 
-PROMPT = """Você ajuda a equipe de captação de recursos da instituição abaixo.
+PROMPT = """Você ajuda a equipe de captação de recursos da instituição abaixo. Hoje é {hoje}.
 INSTITUIÇÃO: {perfil}
 
 Abaixo estão manchetes recentes de notícias (n | data | veículo | manchete).
-Marque só as que indicam uma oportunidade de recurso que a instituição poderia buscar:
+Marque só as que indicam uma oportunidade em que a instituição poderia SE INSCREVER ou PEDIR recurso:
 - pre_edital: edital, chamamento ou programa anunciado que ainda vai abrir
 - edital_aberto: edital ou chamamento com inscrições abertas agora
-- programa: programa, linha de crédito, fundo ou emenda com recursos para hospitais/saúde
-Ignore: resultados, listas de aprovados, política sem recurso, notícias de outros estados que não
-servem para MG (a menos que o programa seja nacional), concursos de emprego, licitações de compra.
+- programa: programa, linha de crédito, fundo ou emenda que hospitais filantrópicos podem solicitar
+IGNORE: resultados e listas de aprovados; crédito suplementar, remanejamento ou execução de orçamento do
+governo; repasses já feitos a outras instituições; política sem chamada aberta; concursos de emprego;
+licitações de compra; editais só para outros estados (a menos que o programa seja nacional);
+oportunidades cujo prazo já passou.
+
+MESMA OPORTUNIDADE EM VÁRIAS MANCHETES: vários veículos noticiam o mesmo edital com títulos diferentes.
+Devolva cada oportunidade UMA vez só (escolha a manchete mais clara) e dê a ela uma "chave" curta e estável
+que identifique a oportunidade, igual para qualquer manchete sobre ela.
+Exemplo de chave: "banco-do-brasil-projetos-sociais-2026", "pronas-pcd-2026".
 
 MANCHETES:
 {lista}
 
 Responda APENAS com JSON:
-{{"noticias": [{{"n": 1, "tipo": "pre_edital|edital_aberto|programa", "relevancia": 0-100,
-  "orgao": "quem oferece o recurso ou null", "por_que": "1 frase: o que é e por que interessa"}}]}}
+{{"noticias": [{{"n": 1, "chave": "orgao-programa-ano", "tipo": "pre_edital|edital_aberto|programa",
+  "relevancia": 0-100, "orgao": "quem oferece o recurso ou null",
+  "prazo": "AAAA-MM-DD se a manchete citar o prazo de inscrição, senão null",
+  "por_que": "1 frase: o que é e por que interessa"}}]}}
 Se nenhuma servir, responda {{"noticias": []}}."""
+
+
+def chave_limpa(valor):
+    return re.sub(r"[^a-z0-9]+", "-", normalizar_texto(valor)).strip("-")[:80] or None
 
 
 def ler_rss(termo):
@@ -84,9 +98,11 @@ def main():
     limite = datetime.now(timezone.utc) - timedelta(days=DIAS)
 
     # Manchetes já gravadas (não paga a IA duas vezes pela mesma notícia)
-    existentes = sb.table("noticias").select("url, titulo").gte("criado_em", (limite - timedelta(days=30)).isoformat()).execute().data or []
+    existentes = sb.table("noticias").select("url, titulo, chave").gte("criado_em", (limite - timedelta(days=30)).isoformat()).execute().data or []
     urls_vistas = {e["url"] for e in existentes}
     titulos_vistos = {normalizar_texto(e["titulo"]) for e in existentes}
+    chaves_vistas = {e["chave"] for e in existentes if e.get("chave")}
+    hoje = date.today()
 
     candidatas = []
     for termo in TERMOS:
@@ -114,13 +130,13 @@ def main():
         return
 
     gravadas = 0
-    for ini in range(0, len(candidatas), 60):  # lotes de 60 manchetes
-        lote = candidatas[ini:ini + 60]
+    for ini in range(0, len(candidatas), 120):  # um lote só: a IA enxerga as repetidas juntas
+        lote = candidatas[ini:ini + 120]
         lista = "\n".join(
             f"{i + 1} | {c['publicado_em'].date().isoformat() if c['publicado_em'] else 's/d'} | {c['fonte']} | {c['titulo']}"
             for i, c in enumerate(lote))
         try:
-            resposta = extrair_json(perguntar(MODELO_LEITURA, PROMPT.format(perfil=PERFIL, lista=lista), max_tokens=3000))
+            resposta = extrair_json(perguntar(MODELO_LEITURA, PROMPT.format(hoje=hoje.isoformat(), perfil=PERFIL, lista=lista), max_tokens=3000))
         except Exception as erro:
             print(f"  ! IA falhou neste lote: {erro}")
             continue
@@ -133,11 +149,19 @@ def main():
             tipo = r.get("tipo")
             if nota < NOTA_MINIMA or tipo not in ("pre_edital", "edital_aberto", "programa"):
                 continue
+            prazo = data_valida(r.get("prazo"))
+            if prazo and prazo < hoje:          # já venceu
+                continue
+            chave = chave_limpa(r.get("chave") or c["titulo"])
+            if chave in chaves_vistas:          # mesma oportunidade já guardada
+                continue
+            chaves_vistas.add(chave)
             registro = {
                 "titulo": c["titulo"][:500], "url": c["url"], "fonte": c["fonte"] or None,
                 "publicado_em": c["publicado_em"].isoformat() if c["publicado_em"] else None,
                 "tipo": tipo, "relevancia": nota, "orgao": (r.get("orgao") or None),
                 "por_que": (r.get("por_que") or "")[:400] or None, "termo": c["termo"],
+                "chave": chave, "prazo": prazo.isoformat() if prazo else None,
             }
             try:
                 sb.table("noticias").upsert(registro, on_conflict="url").execute()
