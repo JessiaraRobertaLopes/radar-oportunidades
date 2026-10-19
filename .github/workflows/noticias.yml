@@ -1,0 +1,31 @@
+name: Radar - Notícias pré-edital
+
+# Execução manual (botão "Run workflow" no GitHub Actions).
+# Custo: só a IA lendo manchetes (centavos). Para rodar sozinho toda segunda às 8h,
+# remova o "#" das 2 linhas de schedule abaixo.
+on:
+  # schedule:
+  #   - cron: '0 11 * * 1'
+  workflow_dispatch:
+
+jobs:
+  noticias:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Buscar e filtrar notícias
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python noticias.py
