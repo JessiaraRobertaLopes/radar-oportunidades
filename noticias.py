@@ -17,7 +17,7 @@ from comum import (MODELO_LEITURA, agora_iso, baixar, data_valida, extrair_json,
                    normalizar_texto, perguntar, resumo_custo, supabase)
 
 DIAS = int(os.environ.get("NOTICIAS_DIAS", "14"))           # janela de notícias
-MAX_MANCHETES = int(os.environ.get("NOTICIAS_MAX", "120"))   # limite enviado à IA
+MAX_MANCHETES = int(os.environ.get("NOTICIAS_MAX", "300"))   # limite enviado à IA
 NOTA_MINIMA = int(os.environ.get("NOTICIAS_NOTA_MINIMA", "55"))
 
 TERMOS = [
@@ -130,13 +130,13 @@ def main():
         return
 
     gravadas = 0
-    for ini in range(0, len(candidatas), 120):  # um lote só: a IA enxerga as repetidas juntas
-        lote = candidatas[ini:ini + 120]
+    for ini in range(0, len(candidatas), 150):  # lotes grandes: a IA enxerga as repetidas juntas
+        lote = candidatas[ini:ini + 150]
         lista = "\n".join(
             f"{i + 1} | {c['publicado_em'].date().isoformat() if c['publicado_em'] else 's/d'} | {c['fonte']} | {c['titulo']}"
             for i, c in enumerate(lote))
         try:
-            resposta = extrair_json(perguntar(MODELO_LEITURA, PROMPT.format(hoje=hoje.isoformat(), perfil=PERFIL, lista=lista), max_tokens=3000))
+            resposta = extrair_json(perguntar(MODELO_LEITURA, PROMPT.format(hoje=hoje.isoformat(), perfil=PERFIL, lista=lista), max_tokens=4000))
         except Exception as erro:
             print(f"  ! IA falhou neste lote: {erro}")
             continue
