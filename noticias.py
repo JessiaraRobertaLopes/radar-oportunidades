@@ -45,7 +45,8 @@ Marque só as que indicam uma oportunidade em que a instituição poderia SE INS
 - pre_edital: edital, chamamento ou programa anunciado que ainda vai abrir
 - edital_aberto: edital ou chamamento com inscrições abertas agora
 - programa: programa, linha de crédito, fundo ou emenda que hospitais filantrópicos podem solicitar
-IGNORE: resultados e listas de aprovados; crédito suplementar, remanejamento ou execução de orçamento do
+IGNORE: resultados (inclusive parciais) e listas de aprovados; histórias de quem já recebeu recurso;
+estudos, mapeamentos e regras sem chamada para inscrição; crédito suplementar, remanejamento ou execução de orçamento do
 governo; repasses já feitos a outras instituições; política sem chamada aberta; concursos de emprego;
 licitações de compra; editais só para outros estados (a menos que o programa seja nacional);
 oportunidades cujo prazo já passou.
@@ -64,6 +65,27 @@ Responda APENAS com JSON:
   "prazo": "AAAA-MM-DD se a manchete citar o prazo de inscrição, senão null",
   "por_que": "1 frase: o que é e por que interessa"}}]}}
 Se nenhuma servir, responda {{"noticias": []}}."""
+
+
+REVISAO = """Você revisa uma lista de notícias para a equipe de captação de recursos. Hoje é {hoje}.
+INSTITUIÇÃO: {perfil}
+
+NOTÍCIAS JÁ GUARDADAS (não repetir):
+{guardadas}
+
+CANDIDATAS NOVAS (n | manchete | prazo | resumo):
+{lista}
+
+Mantenha só as candidatas que passam em TODOS os critérios:
+1. Anunciam algo em que a instituição pode se inscrever ou pedir recurso (edital, chamamento, programa, fundo).
+2. NÃO são: resultado, resultado parcial ou lista de aprovados; história de quem já recebeu recurso;
+   estudo, mapeamento, regra ou portaria sem chamada para inscrição; orçamento do governo.
+3. NÃO tratam da mesma oportunidade de uma notícia já guardada nem de outra candidata
+   (se duas candidatas são a mesma oportunidade, mantenha só a de manchete mais clara).
+4. NÃO estão vencidas. Se você sabe que o prazo desta oportunidade já passou (por exemplo, outra
+   manchete da lista ou das guardadas cita a data), tire.
+
+Responda APENAS com JSON: {{"manter": [n, n, ...]}}"""
 
 
 def chave_limpa(valor):
@@ -98,7 +120,7 @@ def main():
     limite = datetime.now(timezone.utc) - timedelta(days=DIAS)
 
     # Manchetes já gravadas (não paga a IA duas vezes pela mesma notícia)
-    existentes = sb.table("noticias").select("url, titulo, chave").gte("criado_em", (limite - timedelta(days=30)).isoformat()).execute().data or []
+    existentes = sb.table("noticias").select("url, titulo, chave, prazo").gte("criado_em", (limite - timedelta(days=30)).isoformat()).execute().data or []
     urls_vistas = {e["url"] for e in existentes}
     titulos_vistos = {normalizar_texto(e["titulo"]) for e in existentes}
     chaves_vistas = {e["chave"] for e in existentes if e.get("chave")}
@@ -129,8 +151,9 @@ def main():
         print("Nada novo. " + resumo_custo())
         return
 
-    gravadas = 0
-    for ini in range(0, len(candidatas), 150):  # lotes grandes: a IA enxerga as repetidas juntas
+    # 1) Triagem: a IA lê as manchetes em lotes e aponta as candidatas
+    aprovadas = []
+    for ini in range(0, len(candidatas), 150):
         lote = candidatas[ini:ini + 150]
         lista = "\n".join(
             f"{i + 1} | {c['publicado_em'].date().isoformat() if c['publicado_em'] else 's/d'} | {c['fonte']} | {c['titulo']}"
@@ -156,19 +179,44 @@ def main():
             if chave in chaves_vistas:          # mesma oportunidade já guardada
                 continue
             chaves_vistas.add(chave)
-            registro = {
-                "titulo": c["titulo"][:500], "url": c["url"], "fonte": c["fonte"] or None,
-                "publicado_em": c["publicado_em"].isoformat() if c["publicado_em"] else None,
-                "tipo": tipo, "relevancia": nota, "orgao": (r.get("orgao") or None),
-                "por_que": (r.get("por_que") or "")[:400] or None, "termo": c["termo"],
-                "chave": chave, "prazo": prazo.isoformat() if prazo else None,
-            }
-            try:
-                sb.table("noticias").upsert(registro, on_conflict="url").execute()
-                gravadas += 1
-                print(f"  + [{tipo} {nota}] {c['titulo'][:90]}")
-            except Exception as erro:
-                print(f"  ! não gravou {c['titulo'][:60]}: {erro}")
+            aprovadas.append({"c": c, "tipo": tipo, "nota": nota, "prazo": prazo, "chave": chave,
+                              "orgao": r.get("orgao") or None, "por_que": (r.get("por_que") or "")[:400] or None})
+    print(f"Aprovadas na triagem: {len(aprovadas)}")
+
+    # 2) Revisão final: uma lista curta, comparada com o que já está guardado
+    if aprovadas:
+        guardadas = "\n".join(f"- {e['titulo']}" for e in existentes) or "(nenhuma)"
+        lista = "\n".join(
+            f"{i + 1} | {a['c']['titulo']} | prazo: {a['prazo'] or 'não citado'} | {a['por_que'] or ''}"
+            for i, a in enumerate(aprovadas))
+        try:
+            rev = extrair_json(perguntar(MODELO_LEITURA, REVISAO.format(hoje=hoje.isoformat(), perfil=PERFIL,
+                                                                         guardadas=guardadas, lista=lista), max_tokens=1500))
+            manter = {int(n) for n in rev.get("manter", []) if str(n).isdigit()}
+            for i, a in enumerate(aprovadas):
+                if i + 1 not in manter:
+                    print(f"  - revisão tirou: {a['c']['titulo'][:90]}")
+            aprovadas = [a for i, a in enumerate(aprovadas) if i + 1 in manter]
+        except Exception as erro:
+            print(f"  ! revisão falhou, nada será gravado nesta execução: {erro}")
+            aprovadas = []
+
+    # 3) Grava
+    gravadas = 0
+    for a in aprovadas:
+        c = a["c"]
+        registro = {
+            "titulo": c["titulo"][:500], "url": c["url"], "fonte": c["fonte"] or None,
+            "publicado_em": c["publicado_em"].isoformat() if c["publicado_em"] else None,
+            "tipo": a["tipo"], "relevancia": a["nota"], "orgao": a["orgao"], "por_que": a["por_que"],
+            "termo": c["termo"], "chave": a["chave"], "prazo": a["prazo"].isoformat() if a["prazo"] else None,
+        }
+        try:
+            sb.table("noticias").upsert(registro, on_conflict="url").execute()
+            gravadas += 1
+            print(f"  + [{a['tipo']} {a['nota']}] {c['titulo'][:90]}")
+        except Exception as erro:
+            print(f"  ! não gravou {c['titulo'][:60]}: {erro}")
 
     print(f"Notícias relevantes gravadas: {gravadas}")
     print(resumo_custo())
