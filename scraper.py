@@ -149,10 +149,51 @@ def fonte_id(nome, url, tipo):
 # ---------------------------------------------------------------------
 # 1. DESCOBRIR
 # ---------------------------------------------------------------------
+# Listas editáveis pelo Admin na tela "Configurações do robô".
+# Se o banco estiver vazio ou fora do ar, o robô usa as listas fixas acima.
+def fontes_ativas():
+    try:
+        linhas = c.supabase().table("config_fontes").select("id, nome, url, palavras").eq("ativo", True).execute().data or []
+    except Exception as e:
+        print(f"  (config_fontes indisponível, usando lista padrão: {e})")
+        linhas = []
+    if not linhas:
+        return [dict(f, id=None) for f in FONTES_FIXAS]
+    return [{
+        "id": l["id"], "nome": l["nome"],
+        "url": l["url"].replace("{ANO}", str(ANO)),
+        "palavras": [p.lower().strip() for p in (l.get("palavras") or []) if p.strip()] or ["edital", "chamada"],
+    } for l in linhas]
+
+
+def termos_web_ativos():
+    try:
+        linhas = (c.supabase().table("config_termos").select("texto")
+                  .eq("tipo", "web").eq("ativo", True).order("criado_em").limit(10).execute().data or [])
+    except Exception as e:
+        print(f"  (config_termos indisponível, usando lista padrão: {e})")
+        linhas = []
+    return [l["texto"] for l in linhas] or TERMOS_BUSCA
+
+
+def registrar_fonte(f, total=None, erro=None):
+    """Mostra na tela do Admin quantos editais o site trouxe (ou o erro)."""
+    if not f.get("id"):
+        return
+    try:
+        c.supabase().table("config_fontes").update({
+            "ultima_execucao": c.agora_iso(), "ultimo_total": total,
+            "ultimo_erro": (str(erro)[:300] if erro else None),
+        }).eq("id", f["id"]).execute()
+    except Exception as e:
+        print(f"  (não registrou o resultado da fonte: {e})")
+
+
 def descobrir_fontes_fixas():
     candidatos = []
-    for f in FONTES_FIXAS:
+    for f in fontes_ativas():
         print(f"Fonte fixa: {f['nome']}")
+        achados = 0
         try:
             r = c.baixar(f["url"])
             soup = BeautifulSoup(r.text, "html.parser")
@@ -163,16 +204,20 @@ def descobrir_fontes_fixas():
                 href = c.urljoin(r.url, a["href"])
                 if href.startswith("http"):
                     candidatos.append({"titulo": titulo, "url": href, "fonte_nome": f["nome"], "fonte_url": f["url"], "tipo": "html_static"})
+                    achados += 1
             c.supabase().table("sources").update({"last_scraped_at": c.agora_iso()}).eq("url", f["url"]).execute()
+            print(f"  {achados} links de edital encontrados")
+            registrar_fonte(f, total=achados)
         except Exception as e:
             print(f"  erro: {e}")
+            registrar_fonte(f, erro=e)
     return candidatos
 
 
 def descobrir_busca_web():
     candidatos = []
     hoje = date.today().strftime("%d/%m/%Y")
-    for termo in TERMOS_BUSCA:
+    for termo in termos_web_ativos():
         print(f"Busca web: {termo}")
         try:
             resposta = c.perguntar(

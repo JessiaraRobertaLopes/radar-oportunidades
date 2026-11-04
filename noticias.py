@@ -115,6 +115,16 @@ def ler_rss(termo):
     return itens
 
 
+def termos_ativos(sb):
+    """Termos editáveis pelo Admin; se o banco estiver vazio, usa a lista acima."""
+    try:
+        linhas = sb.table("config_termos").select("texto").eq("tipo", "noticias").eq("ativo", True).order("criado_em").execute().data or []
+    except Exception as erro:
+        print(f"  (config_termos indisponível, usando lista padrão: {erro})")
+        linhas = []
+    return [l["texto"] for l in linhas] or TERMOS
+
+
 def main():
     sb = supabase()
     limite = datetime.now(timezone.utc) - timedelta(days=DIAS)
@@ -127,7 +137,7 @@ def main():
     hoje = date.today()
 
     candidatas = []
-    for termo in TERMOS:
+    for termo in termos_ativos(sb):
         try:
             itens = ler_rss(termo)
         except Exception as erro:  # um termo com problema não para os outros
