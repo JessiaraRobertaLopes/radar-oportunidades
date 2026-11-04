@@ -357,7 +357,10 @@
   // Navegação
   // =================================================================
   function mostrar(tela) {
-    if (!TELAS.includes(tela)) tela = 'inicio';
+    const projetos = App.perfil().papel === 'projetos';
+    if (!TELAS.includes(tela)) tela = projetos ? 'gestao' : 'inicio';
+    // Setor de Projetos trabalha só com Gestão, Dashboard e Arquivo
+    if (projetos && ['inicio', 'editais', 'busca-ia', 'noticias'].includes(tela)) { tela = 'gestao'; history.replaceState(null, '', '#gestao'); }
     telaAtual = tela;
     document.querySelectorAll('[data-tela]').forEach(s => s.classList.toggle('oculto', s.dataset.tela !== tela));
     document.querySelectorAll('.nav-item[data-destino]').forEach(a => {

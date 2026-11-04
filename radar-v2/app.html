@@ -349,10 +349,13 @@
   if (perfil.papel === 'admin') document.getElementById('nav-admin').classList.remove('oculto');
   // Setor de Projetos: só os editais encaminhados; ferramentas de busca ficam com a Captação
   if (perfil.papel === 'projetos') {
-    ['busca-ia', 'noticias'].forEach(d => { const a = document.querySelector(`.nav-item[data-destino="${d}"]`); if (a) a.remove(); });
+    ['inicio', 'editais', 'busca-ia', 'noticias'].forEach(d => { const a = document.querySelector(`.nav-item[data-destino="${d}"]`); if (a) a.remove(); });
+    const tituloGrupo = document.querySelector('.nav-grupo .nav-titulo'); if (tituloGrupo) tituloGrupo.textContent = 'Setor de Projetos';
+    const subGestao = document.querySelector('[data-tela="gestao"] .cabecalho .texto-2');
+    if (subGestao) subGestao.textContent = 'Editais encaminhados pela Captação para a decisão do Setor de Projetos.';
     const priv = document.querySelector('.nav-item[href="#privados"]'); if (priv) priv.remove();
     const filtro = document.getElementById('ge-filtro'); if (filtro) filtro.classList.add('oculto');
-    if (!location.hash || ['#inicio', '#busca-ia', '#noticias'].includes(location.hash)) history.replaceState(null, '', '#gestao');
+    if (!location.hash || ['#inicio', '#editais', '#busca-ia', '#noticias'].includes(location.hash)) history.replaceState(null, '', '#gestao');
   }
 
   const sair = document.getElementById('btn-sair');
