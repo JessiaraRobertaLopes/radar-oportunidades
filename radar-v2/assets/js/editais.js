@@ -42,7 +42,7 @@
         .select('*, opportunities(*, sources(name))')
         .order('score', { ascending: false })
         .limit(1000),
-      sb.from('pipeline').select('opportunity_id, status, responsavel_id, prazo_interno, valor_estimado, atualizado_em')
+      sb.from('pipeline').select('opportunity_id, status, responsavel_id, prazo_interno, valor_estimado, atualizado_em, etapa_desde, encaminhado_por, encaminhado_em, decidido_por, decidido_em')
     ]);
     if (qual.error) throw qual.error;
     if (gestao.error) throw gestao.error;
@@ -85,7 +85,13 @@
         responsavelId: g.responsavel_id || null,
         prazoInterno: g.prazo_interno || null,
         valorEstimado: g.valor_estimado ?? null,
-        gestaoAtualizadaEm: g.atualizado_em || null
+        gestaoAtualizadaEm: g.atualizado_em || null,
+        temGestao: !!g.status,
+        etapaDesde: g.etapa_desde || null,
+        encaminhadoPor: g.encaminhado_por || null,
+        encaminhadoEm: g.encaminhado_em || null,
+        decididoPor: g.decidido_por || null,
+        decididoEm: g.decidido_em || null
       });
     }
     return lista;
@@ -119,9 +125,40 @@
   }
 
   const ROTULO_STATUS = {
-    novo: 'Novo', em_analise: 'Em análise', inscrito: 'Inscrito',
-    aprovado: 'Aprovado', reprovado: 'Reprovado', descartado: 'Descartado'
+    novo: 'Novo', em_analise: 'Em análise', descartado: 'Descartado',
+    encaminhado: 'Encaminhado a Projetos', aprovado: 'Aprovado por Projetos', reprovado: 'Reprovado por Projetos'
   };
+
+  // Quem pode levar o edital para cada etapa (o banco confere de novo)
+  const ETAPAS_POR_PAPEL = {
+    captacao: ['novo', 'em_analise', 'descartado', 'encaminhado'],
+    projetos: ['encaminhado', 'aprovado', 'reprovado'],
+    admin: ['novo', 'em_analise', 'descartado', 'encaminhado', 'aprovado', 'reprovado']
+  };
+
+  // Dias úteis (seg a sex) desde uma data até hoje
+  function diasUteisDesde(iso) {
+    if (!iso) return null;
+    const d = new Date(iso); d.setHours(0, 0, 0, 0);
+    const fim = hoje();
+    let n = 0;
+    while (d < fim) { d.setDate(d.getDate() + 1); const s = d.getDay(); if (s !== 0 && s !== 6) n++; }
+    return n;
+  }
+
+  // Alertas de gargalo
+  const LIMITE_ANALISE_DIAS_UTEIS = 5;   // Captação
+  const LIMITE_PRAZO_PROJETOS_DIAS = 10; // Projetos
+  function alerta(e) {
+    if (e.status === 'em_analise') {
+      const n = diasUteisDesde(e.etapaDesde);
+      if (n !== null && n > LIMITE_ANALISE_DIAS_UTEIS) return { com: 'Captação', texto: `Em análise há ${n} dias úteis` };
+    }
+    if (e.status === 'encaminhado' && e.dias !== null && e.dias >= 0 && e.dias <= LIMITE_PRAZO_PROJETOS_DIAS) {
+      return { com: 'Projetos', texto: e.dias === 0 ? 'Prazo vence hoje e Projetos ainda não decidiu' : `Faltam ${e.dias} dia${e.dias > 1 ? 's' : ''} e Projetos ainda não decidiu` };
+    }
+    return null;
+  }
   const ROTULO_SITUACAO = {
     aberto: 'Inscrições abertas', encerrado: 'Encerrado',
     fluxo_continuo: 'Fluxo contínuo', indefinido: 'Situação não confirmada'
@@ -140,16 +177,20 @@
     return _perfis;
   }
 
-  async function salvarGestao(opportunityId, campos) {
+  // Atualiza se o edital já tem gestão; cria se ainda não tem.
+  // (não usa upsert: o banco aplica regras diferentes para criar e para mudar de etapa)
+  async function salvarGestao(opportunityId, campos, jaExiste) {
     const registro = {
-      opportunity_id: opportunityId,
       status: campos.status,
       responsavel_id: campos.responsavelId || null,
       prazo_interno: campos.prazoInterno || null,
       valor_estimado: campos.valorEstimado === '' || campos.valorEstimado == null ? null : Number(campos.valorEstimado)
     };
-    const { error } = await sb.from('pipeline').upsert(registro, { onConflict: 'opportunity_id' });
+    const { data, error } = jaExiste
+      ? await sb.from('pipeline').update(registro).eq('opportunity_id', opportunityId).select().single()
+      : await sb.from('pipeline').insert({ opportunity_id: opportunityId, ...registro }).select().single();
     if (error) throw error;
+    return data;
   }
 
   async function anotacoes(opportunityId) {
@@ -196,7 +237,8 @@
   window.Editais = {
     arquivo,
     carregar, VISOES, filtrarTexto, diasAtePrazo,
-    ROTULO_STATUS, ROTULO_SITUACAO, ROTULO_FILANTROPICO,
+    ROTULO_STATUS, ROTULO_SITUACAO, ROTULO_FILANTROPICO, ETAPAS_POR_PAPEL,
+    diasUteisDesde, alerta,
     perfis, salvarGestao, anotacoes, adicionarAnotacao, excluirAnotacao
   };
 })();

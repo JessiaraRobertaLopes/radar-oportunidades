@@ -8,7 +8,9 @@
   const esc = Radar.escapar;
   const I = Radar.ICONES;
   const TELAS = ['inicio', 'editais', 'gestao', 'arquivo', 'dashboard', 'busca-ia', 'noticias'];
-  const ETAPAS = ['em_analise', 'inscrito', 'aprovado', 'reprovado', 'descartado'];
+  const ETAPAS_TODAS = ['em_analise', 'encaminhado', 'aprovado', 'reprovado', 'descartado'];
+  const ETAPAS_PROJETOS = ['encaminhado', 'aprovado', 'reprovado'];
+  const etapasDoPerfil = () => (App.perfil().papel === 'projetos' ? ETAPAS_PROJETOS : ETAPAS_TODAS);
   const NOME_PRIORIDADE = { A: 'Alta', B: 'Boa', C: 'Média', D: 'Baixa' };
   let App = null;
   let telaAtual = 'inicio';
@@ -68,7 +70,7 @@
     const meu = App.perfil().id;
     let l = App.editais().filter(e => e.status !== 'novo');
     if (soMeus) l = l.filter(e => e.responsavelId === meu);
-    $('ge-quadro').innerHTML = ETAPAS.map(etapa => {
+    $('ge-quadro').innerHTML = etapasDoPerfil().map(etapa => {
       const itens = l.filter(e => e.status === etapa).sort((a, b) => (a.dias ?? 9999) - (b.dias ?? 9999));
       return `
         <section class="coluna" aria-label="${esc(Editais.ROTULO_STATUS[etapa])}">
@@ -83,11 +85,21 @@
                     <span class="prazo ${urgente ? 'urgente' : ''}">${urgente ? I.relogio : I.calendario}${esc(prazo)}</span></div>
                   <strong class="mini-titulo">${esc(e.titulo)}</strong>
                   <span class="texto-3">${e.responsavelId ? esc(nomes.get(e.responsavelId) || 'Responsável') : 'Sem responsável'}${e.valorEstimado ? ' · ' + esc(moeda(e.valorEstimado)) : ''}</span>
+                  ${tempoNaEtapa(e)}
                 </button>`;
             }).join('') : '<p class="texto-3 coluna-vazia">Nenhum edital</p>'}
           </div>
         </section>`;
     }).join('');
+  }
+
+  // Há quanto tempo está na etapa + alerta de gargalo
+  function tempoNaEtapa(e) {
+    const al = Editais.alerta(e);
+    if (al) return `<span class="parado">${I.alerta}${esc(al.texto)}</span>`;
+    if (!e.etapaDesde || ['aprovado', 'reprovado', 'descartado'].includes(e.status)) return '';
+    const n = Editais.diasUteisDesde(e.etapaDesde);
+    return `<span class="texto-3 na-etapa">${n === 0 ? 'Entrou hoje nesta etapa' : `Há ${n} dia${n === 1 ? '' : 's'} út${n === 1 ? 'il' : 'eis'} nesta etapa`}</span>`;
   }
 
   // =================================================================
@@ -148,19 +160,20 @@
     const ativos = todos.filter(ativo);
     const emGestao = todos.filter(e => e.status !== 'novo');
     const vence7 = ativos.filter(e => e.dias !== null && e.dias <= 7);
-    const potencial = emGestao.filter(e => ['em_analise', 'inscrito', 'aprovado'].includes(e.status)).reduce((s, e) => s + (Number(e.valorEstimado) || 0), 0);
+    const potencial = emGestao.filter(e => ['em_analise', 'encaminhado', 'aprovado'].includes(e.status)).reduce((s, e) => s + (Number(e.valorEstimado) || 0), 0);
     const aprovado = emGestao.filter(e => e.status === 'aprovado').reduce((s, e) => s + (Number(e.valorEstimado) || 0), 0);
 
     $('db-kpis').innerHTML = [
       kpi('Oportunidades ativas', ativos.length, `${ativos.filter(e => e.situacao === 'fluxo_continuo').length} de fluxo contínuo`, I.documento),
       kpi('Prioridade A', ativos.filter(e => e.prioridade === 'A').length, 'aderência de 80% ou mais', I.alerta2),
       kpi('Vencem em 7 dias', vence7.length, vence7.length ? 'atenção aos prazos' : 'nenhum prazo apertado', I.relogio),
-      kpi('Em gestão pela equipe', emGestao.length, `${plural(emGestao.filter(e => e.status === 'inscrito').length, 'inscrito')} · ${plural(emGestao.filter(e => e.status === 'aprovado').length, 'aprovado')}`, I.pipeline),
-      kpi('Valor em potencial', moeda(potencial), 'em análise, inscritos e aprovados', I.grafico),
-      kpi('Valor aprovado', moeda(aprovado), 'editais com status aprovado', I.ok)
+      kpi('Em gestão pela equipe', emGestao.length, `${plural(emGestao.filter(e => e.status === 'encaminhado').length, 'encaminhado')} · ${plural(emGestao.filter(e => e.status === 'aprovado').length, 'aprovado')}`, I.pipeline),
+      kpi('Valor em potencial', moeda(potencial), 'em análise, encaminhados e aprovados', I.grafico),
+      kpi('Valor aprovado', moeda(aprovado), 'aprovados pelo Setor de Projetos', I.ok)
     ].join('');
 
-    $('db-etapas').innerHTML = barras(ETAPAS.map(s => ({ rotulo: Editais.ROTULO_STATUS[s], valor: todos.filter(e => e.status === s).length })));
+    renderGargalos(todos);
+    $('db-etapas').innerHTML = barras(etapasDoPerfil().map(s => ({ rotulo: Editais.ROTULO_STATUS[s], valor: todos.filter(e => e.status === s).length })));
     $('db-prioridades').innerHTML = barras(['A', 'B', 'C', 'D'].map(p => ({ rotulo: `${p} · ${NOME_PRIORIDADE[p]}`, valor: ativos.filter(e => e.prioridade === p).length })));
 
     const proximos = ativos.filter(e => e.dias !== null).sort((a, b) => a.dias - b.dias).slice(0, 6);
@@ -176,6 +189,24 @@
     $('db-fontes').innerHTML = barras(Object.entries(fontes).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([rotulo, valor]) => ({ rotulo, valor })));
   }
 
+
+  // Onde está parado: Captação (análise demorada) e Projetos (prazo chegando sem decisão)
+  async function renderGargalos(todos) {
+    let nomes = new Map();
+    try { nomes = new Map((await Editais.perfis()).map(p => [p.id, p.nome])); } catch (e) { console.error(e); }
+    const itens = todos.filter(ativo).map(e => ({ e, al: Editais.alerta(e) })).filter(x => x.al);
+    const grupo = (com, quem) => {
+      const l = itens.filter(x => x.al.com === com);
+      return `<div class="gargalo-grupo"><h3>${esc(com)} <span class="contador">${l.length}</span></h3>${l.length ? `<ul class="prazos-lista">${l.map(({ e, al }) => `
+        <li><button type="button" class="prazo-item" data-id="${esc(e.id)}">
+          <span class="prazo-titulo">${esc(e.titulo)}<small class="texto-3">${esc(quem(e))}</small></span>
+          <span class="prazo urgente">${esc(al.texto)}</span>
+        </button></li>`).join('')}</ul>` : '<p class="texto-3">Nada parado.</p>'}</div>`;
+    };
+    $('db-gargalos').innerHTML =
+      grupo('Captação', e => e.responsavelId ? `Com ${nomes.get(e.responsavelId) || 'responsável'}` : 'Sem responsável definido') +
+      grupo('Projetos', e => `Encaminhado por ${nomes.get(e.encaminhadoPor) || 'Captação'}${e.encaminhadoEm ? ' em ' + dataBR(e.encaminhadoEm) : ''}`);
+  }
 
   // =================================================================
   // BUSCA COM IA (Edge Function "busca-ia")
@@ -358,7 +389,7 @@
       renderGestao();
     }));
     // cliques que abrem o detalhe
-    ['ed-lista', 'ge-quadro', 'db-prazos'].forEach(id => $(id).addEventListener('click', ev => {
+    ['ed-lista', 'ge-quadro', 'db-prazos', 'db-gargalos'].forEach(id => $(id).addEventListener('click', ev => {
       const alvo = ev.target.closest('[data-id]');
       if (alvo) abrirPorId(alvo.dataset.id, alvo);
     }));

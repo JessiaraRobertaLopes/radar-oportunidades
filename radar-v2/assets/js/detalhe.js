@@ -77,28 +77,59 @@
   }
 
   async function htmlGestao(e) {
+    const papel = perfilAtual.papel || 'captacao';
+    let nomes = new Map();
     let opcoesResp = '<option value="">Sem responsável</option>';
     try {
       const lista = await Editais.perfis();
+      nomes = new Map(lista.map(p => [p.id, p.nome]));
       opcoesResp += lista.map(p => `<option value="${esc(p.id)}" ${p.id === e.responsavelId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
     } catch (err) { console.error(err); }
-    const opcoesStatus = Object.entries(Editais.ROTULO_STATUS)
-      .map(([v, r]) => `<option value="${v}" ${v === e.status ? 'selected' : ''}>${esc(r)}</option>`).join('');
+
+    // Linha do tempo: onde está, desde quando, quem encaminhou e quem decidiu
+    const desde = e.etapaDesde ? Editais.diasUteisDesde(e.etapaDesde) : null;
+    const al = Editais.alerta(e);
+    const linhas = [];
+    if (e.temGestao && e.etapaDesde) linhas.push(`Nesta etapa desde ${esc(dataBR(e.etapaDesde))}${desde !== null ? ` (${desde} dia${desde === 1 ? '' : 's'} út${desde === 1 ? 'il' : 'eis'})` : ''}`);
+    if (e.encaminhadoEm) linhas.push(`Encaminhado a Projetos por <strong>${esc(nomes.get(e.encaminhadoPor) || 'alguém da Captação')}</strong> em ${esc(dataBR(e.encaminhadoEm))}`);
+    if (e.decididoEm) linhas.push(`${e.status === 'reprovado' ? 'Reprovado' : 'Aprovado'} por <strong>${esc(nomes.get(e.decididoPor) || 'Setor de Projetos')}</strong> em ${esc(dataBR(e.decididoEm))}`);
+    const historico = linhas.length ? `<ul class="g-linha-tempo">${linhas.map(l => `<li>${l}</li>`).join('')}</ul>` : '';
+    const aviso = al ? `<div class="alerta alerta-erro">${I.alerta}<span><strong>Parado com ${esc(al.com)}:</strong> ${esc(al.texto)}.</span></div>` : '';
+
+    // Quais etapas este perfil pode escolher
+    const permitidas = Editais.ETAPAS_POR_PAPEL[papel] || Editais.ETAPAS_POR_PAPEL.captacao;
+    const decidido = ['aprovado', 'reprovado'].includes(e.status);
+    const bloqueado = (papel === 'captacao' && decidido) || (papel === 'projetos' && !permitidas.includes(e.status));
+    const opcoes = permitidas.includes(e.status) ? permitidas : [e.status, ...permitidas];
+    const opcoesStatus = opcoes.map(v => `<option value="${v}" ${v === e.status ? 'selected' : ''}>${esc(Editais.ROTULO_STATUS[v])}</option>`).join('');
+    const ehProjetos = papel === 'projetos';
+
+    if (bloqueado) {
+      return `
+        <section class="g-secao">
+          <h3>Gestão</h3>
+          <p><span class="selo">${esc(Editais.ROTULO_STATUS[e.status])}</span></p>
+          ${historico}
+          <p class="texto-3">${decidido ? 'Este edital já foi decidido pelo Setor de Projetos.' : 'Sem permissão para alterar esta etapa.'}</p>
+        </section>`;
+    }
+
     return `
       <section class="g-secao">
-        <h3>Gestão da equipe</h3>
+        <h3>${ehProjetos ? 'Decisão do Setor de Projetos' : 'Gestão da equipe'}</h3>
+        ${aviso}${historico}
         <form id="g-form" class="g-form" novalidate>
-          <div class="campo"><label for="g-status">Status</label>
+          <div class="campo"><label for="g-status">Etapa</label>
             <select class="entrada" id="g-status">${opcoesStatus}</select></div>
-          <div class="campo"><label for="g-resp">Responsável</label>
+          <div class="campo ${ehProjetos ? 'oculto' : ''}"><label for="g-resp">Responsável na Captação</label>
             <select class="entrada" id="g-resp">${opcoesResp}</select></div>
-          <div class="campo"><label for="g-prazo">Prazo interno</label>
+          <div class="campo ${ehProjetos ? 'oculto' : ''}"><label for="g-prazo">Prazo interno</label>
             <input class="entrada" id="g-prazo" type="date" value="${esc(e.prazoInterno || '')}"></div>
-          <div class="campo"><label for="g-valor">Valor estimado (R$)</label>
+          <div class="campo ${ehProjetos ? 'oculto' : ''}"><label for="g-valor">Valor estimado (R$)</label>
             <input class="entrada" id="g-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${e.valorEstimado ?? ''}" placeholder="0,00"></div>
           <div class="g-form-acoes">
             <span id="g-msg" class="texto-3" role="status" aria-live="polite"></span>
-            <button class="btn btn-primario" type="submit" id="g-salvar">Salvar gestão</button>
+            <button class="btn btn-primario" type="submit" id="g-salvar">${ehProjetos ? 'Salvar decisão' : 'Salvar gestão'}</button>
           </div>
         </form>
       </section>`;
@@ -201,7 +232,8 @@
     // Gestão
     document.getElementById('g-gestao').innerHTML = await htmlGestao(e);
     if (editalAtual !== e) return;
-    document.getElementById('g-form').addEventListener('submit', async ev => {
+    const form = document.getElementById('g-form');
+    if (form) form.addEventListener('submit', async ev => {
       ev.preventDefault();
       const btn = document.getElementById('g-salvar');
       const msg = document.getElementById('g-msg');
@@ -213,18 +245,23 @@
       };
       btn.disabled = true; msg.textContent = 'Salvando';
       try {
-        await Editais.salvarGestao(e.id, campos);
+        const g = await Editais.salvarGestao(e.id, campos, e.temGestao);
         Object.assign(e, {
-          status: campos.status, responsavelId: campos.responsavelId || null,
-          prazoInterno: campos.prazoInterno || null,
-          valorEstimado: campos.valorEstimado === '' ? null : Number(campos.valorEstimado)
+          status: g.status, responsavelId: g.responsavel_id, prazoInterno: g.prazo_interno,
+          valorEstimado: g.valor_estimado, temGestao: true, etapaDesde: g.etapa_desde,
+          encaminhadoPor: g.encaminhado_por, encaminhadoEm: g.encaminhado_em,
+          decididoPor: g.decidido_por, decididoEm: g.decidido_em
         });
-        msg.textContent = 'Gestão salva.';
         aoSalvar(e);
+        document.getElementById('g-gestao').innerHTML = await htmlGestao(e);
+        abrir(e, ultimoFoco); // redesenha com a etapa nova
       } catch (err) {
         console.error(err);
-        msg.textContent = 'Não foi possível salvar. Tente de novo.';
-      } finally { btn.disabled = false; }
+        // as regras do banco devolvem mensagens já em português
+        const texto = /Projetos|decidido|permissão/.test(err.message || '') ? err.message : 'Não foi possível salvar. Tente de novo.';
+        msg.textContent = texto;
+        btn.disabled = false;
+      }
     });
 
     // Anotações

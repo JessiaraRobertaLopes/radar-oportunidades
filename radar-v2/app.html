@@ -231,7 +231,7 @@
             <input class="entrada" id="ed-busca" type="search" placeholder="Buscar por título, órgão ou área" aria-label="Buscar editais"></div>
           <select class="entrada" id="ed-prioridade" aria-label="Prioridade"><option value="">Todas as prioridades</option><option value="A">Prioridade A</option><option value="B">Prioridade B</option><option value="C">Prioridade C</option><option value="D">Prioridade D</option></select>
           <select class="entrada" id="ed-situacao" aria-label="Situação"><option value="">Todas as situações</option><option value="aberto">Inscrições abertas</option><option value="fluxo_continuo">Fluxo contínuo</option><option value="indefinido">Situação não confirmada</option></select>
-          <select class="entrada" id="ed-status" aria-label="Status da gestão"><option value="">Todos os status</option><option value="novo">Novo</option><option value="em_analise">Em análise</option><option value="inscrito">Inscrito</option><option value="aprovado">Aprovado</option><option value="reprovado">Reprovado</option><option value="descartado">Descartado</option></select>
+          <select class="entrada" id="ed-status" aria-label="Status da gestão"><option value="">Todos os status</option><option value="novo">Novo</option><option value="em_analise">Em análise</option><option value="descartado">Descartado</option><option value="encaminhado">Encaminhado a Projetos</option><option value="aprovado">Aprovado por Projetos</option><option value="reprovado">Reprovado por Projetos</option></select>
           <select class="entrada" id="ed-ordem" aria-label="Ordenar"><option value="aderencia">Maior aderência</option><option value="prazo">Prazo mais próximo</option><option value="recentes">Mais recentes</option></select>
         </div>
         <p class="texto-3 contagem" id="ed-contagem"></p>
@@ -241,7 +241,7 @@
       <!-- GESTÃO -->
       <section data-tela="gestao" class="oculto">
         <div class="cabecalho anima"><div><h1 class="titulo-xl">Gestão</h1>
-          <p class="texto-2">Editais em acompanhamento pela equipe. Para incluir um edital aqui, abra o edital e mude o status.</p></div>
+          <p class="texto-2">Editais em acompanhamento pela equipe. Para incluir um edital aqui, abra o edital e mude a etapa.</p></div>
           <div class="abas abas-compactas" role="tablist" id="ge-filtro">
             <button class="aba" role="tab" type="button" aria-selected="true" data-meus="nao">Todos</button>
             <button class="aba" role="tab" type="button" aria-selected="false" data-meus="sim">Só os meus</button>
@@ -309,6 +309,11 @@
         <div class="cabecalho anima"><div><h1 class="titulo-xl">Dashboard</h1>
           <p class="texto-2">Retrato do Radar e da captação da equipe hoje.</p></div></div>
         <div class="kpis cascata" id="db-kpis"></div>
+        <section class="cartao painel-grafico painel-gargalos anima" style="--atraso:160ms">
+          <h2 class="titulo-m">Onde está parado</h2>
+          <p class="texto-3">Captação: em análise há mais de 5 dias úteis. Projetos: encaminhado, sem decisão, com 10 dias ou menos para o prazo do edital.</p>
+          <div id="db-gargalos" class="gargalos"></div>
+        </section>
         <div class="graficos">
           <section class="cartao painel-grafico anima" style="--atraso:200ms"><h2 class="titulo-m">Gestão por etapa</h2><div id="db-etapas"></div></section>
           <section class="cartao painel-grafico anima" style="--atraso:260ms"><h2 class="titulo-m">Oportunidades ativas por prioridade</h2><div id="db-prioridades"></div></section>
@@ -332,7 +337,7 @@
   const sessao = await Radar.exigirLogin();
   if (!sessao) return;
   const { perfil } = sessao;
-  const papel = perfil.papel === 'admin' ? 'Administração' : 'Captação de Recursos';
+  const papel = { admin: 'Administração', projetos: 'Setor de Projetos' }[perfil.papel] || 'Captação de Recursos';
   const primeiroNome = (perfil.nome || '').split(' ')[0];
 
   document.getElementById('u-nome').textContent = perfil.nome;
@@ -342,6 +347,13 @@
   document.getElementById('f-email').textContent = perfil.email;
   document.getElementById('f-papel').textContent = papel;
   if (perfil.papel === 'admin') document.getElementById('nav-admin').classList.remove('oculto');
+  // Setor de Projetos: só os editais encaminhados; ferramentas de busca ficam com a Captação
+  if (perfil.papel === 'projetos') {
+    ['busca-ia', 'noticias'].forEach(d => { const a = document.querySelector(`.nav-item[data-destino="${d}"]`); if (a) a.remove(); });
+    const priv = document.querySelector('.nav-item[href="#privados"]'); if (priv) priv.remove();
+    const filtro = document.getElementById('ge-filtro'); if (filtro) filtro.classList.add('oculto');
+    if (!location.hash || ['#inicio', '#busca-ia', '#noticias'].includes(location.hash)) history.replaceState(null, '', '#gestao');
+  }
 
   const sair = document.getElementById('btn-sair');
   sair.innerHTML = Radar.ICONES.sair;
