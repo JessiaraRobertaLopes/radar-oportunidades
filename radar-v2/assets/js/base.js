@@ -97,13 +97,15 @@
 
     const { data: perfil, error } = await sb
       .from('perfis')
-      .select('id, nome, email, papel, ativo')
+      .select('id, nome, email, papel, ativo, liberado_em')
       .eq('id', session.user.id)
       .maybeSingle();
 
     if (error || !perfil || !perfil.ativo) {
       await sb.auth.signOut();
-      window.location.replace('index.html?motivo=inativo');
+      // cadastro novo que o Admin ainda não liberou x acesso desativado
+      const motivo = perfil && !perfil.ativo && !perfil.liberado_em ? 'aguardando' : 'inativo';
+      window.location.replace('index.html?motivo=' + motivo);
       return null;
     }
     return { usuario: session.user, perfil };

@@ -597,3 +597,25 @@ textarea.entrada { height: auto; padding: 10px 12px; resize: vertical; line-heig
 .gargalos .prazo { white-space: normal; justify-self: start; }
 .mini-card .parado { align-items: flex-start; }
 .mini-card .parado svg { flex: none; margin-top: 2px; }
+
+/* Administração */
+.tabela-usuarios .linha { grid-template-columns: minmax(0, 2fr) minmax(150px, 1fr) minmax(120px, 0.8fr) minmax(80px, 0.5fr) minmax(150px, 0.8fr); align-items: center; }
+.tabela-usuarios .linha.inativo { opacity: .6; }
+.tabela-usuarios small { display: block; }
+.entrada-pequena { padding: 6px 10px; font-size: 13px; min-height: 0; }
+.cf-bloco { padding: 20px; margin-top: 18px; display: grid; gap: 12px; }
+.cf-lista { display: grid; gap: 8px; }
+.cf-item { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--borda); border-radius: var(--raio-sm); background: var(--superficie); }
+.cf-item.inativo { opacity: .55; }
+.cf-texto { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.cf-texto .parado { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 600; color: var(--vermelho); }
+.cf-texto .parado svg { width: 13px; height: 13px; }
+.cf-acoes { display: flex; gap: 4px; flex: none; }
+.cf-form { display: grid; grid-template-columns: 1fr 1.4fr 1.4fr auto; gap: 8px; }
+.cf-form-termo { grid-template-columns: 1fr auto; }
+@media (max-width: 900px) {
+  .cf-form { grid-template-columns: 1fr; }
+  .tabela-usuarios .linha { grid-template-columns: 1fr; gap: 6px; }
+  .tabela-usuarios .linha.cabeca { display: none; }
+  .cf-item { flex-direction: column; }
+}

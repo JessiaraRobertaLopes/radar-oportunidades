@@ -135,7 +135,8 @@
       </div>
       <div class="nav-grupo oculto" id="nav-admin">
         <div class="nav-titulo">Administração</div>
-        <a class="nav-item" aria-disabled="true" href="#usuarios" title="Usuários"><span data-icone="usuarios"></span><span class="rotulo">Usuários</span><span class="em-breve">Em breve</span></a>
+        <a class="nav-item" href="#usuarios" data-destino="usuarios" title="Usuários"><span data-icone="usuarios"></span><span class="rotulo">Usuários</span></a>
+        <a class="nav-item" href="#config" data-destino="config" title="Configurações do robô"><span data-icone="radar"></span><span class="rotulo">Robô</span></a>
         <a class="nav-item" aria-disabled="true" href="#auditoria" title="Auditoria"><span data-icone="historico"></span><span class="rotulo">Auditoria</span><span class="em-breve">Em breve</span></a>
       </div>
     </nav>
@@ -304,6 +305,55 @@
         <div class="lista-editais" id="nt-lista"></div>
       </section>
 
+
+      <!-- USUÁRIOS (Admin) -->
+      <section data-tela="usuarios" class="oculto">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Usuários</h1>
+          <p class="texto-2">Quem tem acesso ao Radar, com qual papel, e o uso da IA no mês.</p></div></div>
+        <div class="kpis cascata" id="us-kpis"></div>
+        <div id="us-msg" style="margin-top:16px"></div>
+        <div id="us-lista" style="margin-top:12px"></div>
+      </section>
+
+      <!-- CONFIGURAÇÕES DO ROBÔ (Admin) -->
+      <section data-tela="config" class="oculto" id="tela-config">
+        <div class="cabecalho anima"><div><h1 class="titulo-xl">Configurações do robô</h1>
+          <p class="texto-2">Sites e termos que os robôs usam. As mudanças valem a partir da próxima execução.</p></div></div>
+        <div id="cf-msg" style="margin-top:16px"></div>
+
+        <section class="cartao cf-bloco anima" style="--atraso:80ms">
+          <h2 class="titulo-m">Sites fixos</h2>
+          <p class="texto-3">Páginas que listam editais. O robô lê os links da página e guarda os que têm uma das palavras. Funciona com sites em que a lista aparece na própria página; sites que carregam a lista depois, por programação, ou só em PDF podem não funcionar. Use {ANO} no endereço para o ano atual.</p>
+          <div id="cf-fontes" class="cf-lista"></div>
+          <form id="cf-form-fonte" class="cf-form" novalidate>
+            <input class="entrada" id="cf-f-nome" placeholder="Nome (ex.: BNDES | Chamadas)" aria-label="Nome do site" maxlength="120">
+            <input class="entrada" id="cf-f-url" placeholder="https://..." aria-label="Endereço da página de editais">
+            <input class="entrada" id="cf-f-palavras" placeholder="Palavras, separadas por vírgula (ex.: edital, chamada)" aria-label="Palavras de filtro">
+            <button class="btn btn-primario" type="submit">Adicionar site</button>
+          </form>
+        </section>
+
+        <section class="cartao cf-bloco anima" style="--atraso:140ms">
+          <h2 class="titulo-m">Termos de busca na web</h2>
+          <p class="texto-3" id="cf-web-info"></p>
+          <div id="cf-web" class="cf-lista"></div>
+          <form id="cf-form-web" class="cf-form cf-form-termo" novalidate>
+            <input class="entrada" id="cf-web-texto" placeholder="Ex.: edital equipamentos hospitalares inscrições abertas" aria-label="Novo termo de busca na web" maxlength="200">
+            <button class="btn btn-primario" type="submit">Adicionar termo</button>
+          </form>
+        </section>
+
+        <section class="cartao cf-bloco anima" style="--atraso:200ms">
+          <h2 class="titulo-m">Termos de notícias (Google Notícias)</h2>
+          <p class="texto-3" id="cf-noticias-info"></p>
+          <div id="cf-noticias" class="cf-lista"></div>
+          <form id="cf-form-noticias" class="cf-form cf-form-termo" novalidate>
+            <input class="entrada" id="cf-noticias-texto" placeholder='Ex.: "chamada pública" hospital OR saúde' aria-label="Novo termo de notícias" maxlength="200">
+            <button class="btn btn-primario" type="submit">Adicionar termo</button>
+          </form>
+        </section>
+      </section>
+
       <!-- DASHBOARD -->
       <section data-tela="dashboard" class="oculto">
         <div class="cabecalho anima"><div><h1 class="titulo-xl">Dashboard</h1>
@@ -332,6 +382,7 @@
 <script src="assets/js/editais.js"></script>
 <script src="assets/js/detalhe.js"></script>
 <script src="assets/js/telas.js"></script>
+<script src="assets/js/admin.js"></script>
 <script>
 (async () => {
   const sessao = await Radar.exigirLogin();
@@ -347,6 +398,7 @@
   document.getElementById('f-email').textContent = perfil.email;
   document.getElementById('f-papel').textContent = papel;
   if (perfil.papel === 'admin') document.getElementById('nav-admin').classList.remove('oculto');
+  Admin.iniciar(perfil);
   // Setor de Projetos: só os editais encaminhados; ferramentas de busca ficam com a Captação
   if (perfil.papel === 'projetos') {
     ['inicio', 'editais', 'busca-ia', 'noticias'].forEach(d => { const a = document.querySelector(`.nav-item[data-destino="${d}"]`); if (a) a.remove(); });

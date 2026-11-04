@@ -156,13 +156,13 @@
 
     if (error) return mostrarErro(error);
 
-    // Com a confirmação de e-mail desligada, a sessão já vem pronta
-    if (data && data.session) return irParaSistema();
-
-    // Se a confirmação for ligada no ambiente oficial
+    // Cadastro novo aguarda a liberação do Admin: não entra direto no sistema
+    if (data && data.session) await sb.auth.signOut();
     mostrar('form-entrar');
     $('entrar-email').value = email;
-    mensagem('sucesso', 'Conta criada. Confirme pelo link enviado ao seu e-mail e depois entre.');
+    mensagem('sucesso', data && data.session
+      ? 'Cadastro recebido. Seu acesso será liberado pela administração do Radar; depois disso é só entrar com seu e-mail e senha.'
+      : 'Conta criada. Confirme pelo link enviado ao seu e-mail. Depois, seu acesso será liberado pela administração do Radar.');
   });
 
   // ---------- Esqueci a senha ----------
@@ -214,9 +214,12 @@
     if (params.get('motivo') === 'inativo') {
       mensagem('erro', 'Seu acesso está desativado. Fale com a administração do Radar.');
     }
+    if (params.get('motivo') === 'aguardando') {
+      mensagem('sucesso', 'Seu cadastro está aguardando liberação da administração do Radar. Assim que for liberado, é só entrar.');
+    }
     if (veioDeRecuperacao) { mostrar('form-nova-senha'); return; }
 
     const { data: { session } } = await sb.auth.getSession();
-    if (session && params.get('motivo') !== 'inativo') irParaSistema();
+    if (session && !params.get('motivo')) irParaSistema();
   })();
 })();

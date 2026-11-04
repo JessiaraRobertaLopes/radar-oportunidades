@@ -7,7 +7,7 @@
 (function () {
   const esc = Radar.escapar;
   const I = Radar.ICONES;
-  const TELAS = ['inicio', 'editais', 'gestao', 'arquivo', 'dashboard', 'busca-ia', 'noticias'];
+  const TELAS = ['inicio', 'editais', 'gestao', 'arquivo', 'dashboard', 'busca-ia', 'noticias', 'usuarios', 'config'];
   const ETAPAS_TODAS = ['em_analise', 'encaminhado', 'aprovado', 'reprovado', 'descartado'];
   const ETAPAS_PROJETOS = ['encaminhado', 'aprovado', 'reprovado'];
   const etapasDoPerfil = () => (App.perfil().papel === 'projetos' ? ETAPAS_PROJETOS : ETAPAS_TODAS);
@@ -361,12 +361,13 @@
     if (!TELAS.includes(tela)) tela = projetos ? 'gestao' : 'inicio';
     // Setor de Projetos trabalha só com Gestão, Dashboard e Arquivo
     if (projetos && ['inicio', 'editais', 'busca-ia', 'noticias'].includes(tela)) { tela = 'gestao'; history.replaceState(null, '', '#gestao'); }
+    if (App.perfil().papel !== 'admin' && ['usuarios', 'config'].includes(tela)) { tela = projetos ? 'gestao' : 'inicio'; history.replaceState(null, '', '#' + tela); }
     telaAtual = tela;
     document.querySelectorAll('[data-tela]').forEach(s => s.classList.toggle('oculto', s.dataset.tela !== tela));
     document.querySelectorAll('.nav-item[data-destino]').forEach(a => {
       if (a.dataset.destino === tela) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    const titulos = { inicio: 'Início', editais: 'Editais', gestao: 'Gestão', arquivo: 'Arquivo', dashboard: 'Dashboard', 'busca-ia': 'Busca com IA', noticias: 'Notícias' };
+    const titulos = { inicio: 'Início', editais: 'Editais', gestao: 'Gestão', arquivo: 'Arquivo', dashboard: 'Dashboard', 'busca-ia': 'Busca com IA', noticias: 'Notícias', usuarios: 'Usuários', config: 'Configurações do robô' };
     document.title = `${titulos[tela]} | Radar de Oportunidades`;
     atualizar();
     window.scrollTo(0, 0);
@@ -379,6 +380,8 @@
     if (telaAtual === 'dashboard') renderDashboard();
     if (telaAtual === 'busca-ia') carregarHistorico();
     if (telaAtual === 'noticias') carregarNoticias();
+    if (telaAtual === 'usuarios') Admin.usuarios();
+    if (telaAtual === 'config') Admin.config();
   }
 
   function iniciar(app) {
