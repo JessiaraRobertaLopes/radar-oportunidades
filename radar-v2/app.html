@@ -266,13 +266,15 @@
       <!-- BUSCA COM IA -->
       <section data-tela="busca-ia" class="oculto">
         <div class="cabecalho anima"><div><h1 class="titulo-xl">Busca com IA</h1>
-          <p class="texto-2">Descreva um projeto e a IA indica os editais que podem financiá-lo.</p></div></div>
+          <p class="texto-2">Descreva o projeto, marque os filtros que importam e a IA indica os editais que podem financiá-lo. Sem filtro marcado, a busca considera todas as opções.</p></div></div>
         <div class="busca-ia-grade">
           <div>
             <form id="ia-form" class="cartao ia-form anima" style="--atraso:80ms" novalidate>
               <div class="campo"><label for="ia-pergunta">Qual projeto você quer financiar?</label>
                 <textarea class="entrada" id="ia-pergunta" rows="4" maxlength="2000" placeholder="Ex.: compra de equipamentos para ampliar a UTI neonatal, com 10 novos leitos SUS"></textarea></div>
-              <div class="chips" id="ia-exemplos" aria-label="Exemplos de projeto"></div>
+              <div id="ia-filtros" class="ia-filtros" aria-label="Filtros da busca"></div>
+              <label class="ia-web"><input type="checkbox" id="ia-prazo-breve">
+                <span><strong>Incluir oportunidades que ainda vão abrir</strong><small class="texto-3">Sem marcar, a busca considera só inscrições abertas agora.</small></span></label>
               <label class="ia-web"><input type="checkbox" id="ia-web">
                 <span><strong>Incluir busca na web</strong><small class="texto-3">Mais completa, porém mais lenta (cerca de 30 segundos) e com custo maior de IA.</small></span></label>
               <div class="g-form-acoes"><button class="btn btn-primario" type="submit" id="ia-buscar">Buscar editais</button></div>

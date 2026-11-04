@@ -619,3 +619,9 @@ textarea.entrada { height: auto; padding: 10px 12px; resize: vertical; line-heig
   .tabela-usuarios .linha.cabeca { display: none; }
   .cf-item { flex-direction: column; }
 }
+
+/* Filtros da Busca com IA */
+.ia-filtros { display: grid; gap: 12px; }
+.ia-grupo { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ia-grupo legend { font-size: 13px; font-weight: 600; color: var(--texto-2); padding: 0; margin-bottom: 6px; }
+.hist-filtros { display: block; font-size: 12px; }

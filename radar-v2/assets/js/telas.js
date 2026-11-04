@@ -211,13 +211,35 @@
   // =================================================================
   // BUSCA COM IA (Edge Function "busca-ia")
   // =================================================================
-  const EXEMPLOS = [
-    'Equipamentos para UTI Neonatal com novos leitos para atendimento SUS',
-    'Pesquisa clínica em oncologia pediátrica',
-    'Inteligência artificial para triagem e gestão de leitos',
-    'Reforma e ampliação do bloco cirúrgico de alta complexidade',
-    'Programa de inclusão e atendimento em Libras para a comunidade surda'
-  ];
+  // Filtros da busca (os mesmos valores são conferidos na Edge Function)
+  const FILTROS = {
+    abrangencia: { titulo: 'Abrangência', opcoes: { nacional: 'Nacional', estadual: 'Estadual (MG)', municipal: 'Municipal (BH)', internacional: 'Internacional' } },
+    tipo: { titulo: 'Tipo de oportunidade', opcoes: { edital_publico: 'Edital ou chamamento público', emenda: 'Emenda parlamentar', privado: 'Fundação ou empresa privada', premio: 'Prêmio', credito: 'Linha de crédito ou financiamento' } },
+    area: { titulo: 'Área do projeto', opcoes: { pesquisa: 'Pesquisa', equipamentos: 'Equipamentos', obras: 'Obras e infraestrutura', ensino: 'Ensino e residência', assistencia: 'Assistência', inovacao: 'Inovação e tecnologia', social: 'Social e ESG' } }
+  };
+
+  function filtrosEscolhidos() {
+    const f = {};
+    Object.keys(FILTROS).forEach(k => {
+      f[k] = [...document.querySelectorAll(`#ia-filtros [data-grupo="${k}"][aria-pressed="true"]`)].map(b => b.dataset.valor);
+    });
+    f.prazo = $('ia-prazo-breve').checked ? 'em_breve' : 'abertas';
+    return f;
+  }
+
+  function aplicarFiltros(f) {
+    document.querySelectorAll('#ia-filtros .chip').forEach(b => {
+      b.setAttribute('aria-pressed', String(!!(f && (f[b.dataset.grupo] || []).includes(b.dataset.valor))));
+    });
+    $('ia-prazo-breve').checked = !!(f && f.prazo === 'em_breve');
+  }
+
+  function textoFiltros(f) {
+    if (!f) return '';
+    const partes = Object.keys(FILTROS).flatMap(k => (f[k] || []).map(v => FILTROS[k].opcoes[v]).filter(Boolean));
+    if (f.prazo === 'em_breve') partes.push('inclui os que abrem em breve');
+    return partes.join(' · ');
+  }
 
   function htmlResultados(r) {
     const base = r.da_base || [], web = r.da_web || [];
@@ -258,6 +280,7 @@
     caixa.innerHTML = historico.length ? historico.map(h => `
       <button class="historico-item" type="button" data-hist="${esc(h.id)}">
         <span>${esc(h.pergunta)}</span>
+        ${textoFiltros((h.resultados || {}).filtros) ? `<small class="texto-3 hist-filtros">${esc(textoFiltros((h.resultados || {}).filtros))}</small>` : ''}
         <small class="texto-3">${esc(new Date(h.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))} · ${h.total_resultados ?? 0} resultado${h.total_resultados === 1 ? '' : 's'}</small>
       </button>`).join('') : '<p class="texto-3">Suas buscas aparecem aqui.</p>';
   }
@@ -269,12 +292,13 @@
     const msg = $('ia-msg');
     if (pergunta.length < 10) { msg.innerHTML = `<div class="alerta alerta-erro">${I.alerta}<span>Descreva o projeto com pelo menos 10 caracteres.</span></div>`; return; }
     const web = $('ia-web').checked;
+    const filtros = filtrosEscolhidos();
     const btn = $('ia-buscar');
     btn.disabled = true; btn.classList.add('carregando'); btn.textContent = web ? 'Buscando na base e na web' : 'Buscando';
     msg.innerHTML = '';
     $('ia-resultados').innerHTML = '<div class="lista-editais"><div class="esqueleto"></div><div class="esqueleto"></div></div>';
     try {
-      const { data, error } = await Radar.sb.functions.invoke('busca-ia', { body: { pergunta, incluir_web: web } });
+      const { data, error } = await Radar.sb.functions.invoke('busca-ia', { body: { pergunta, incluir_web: web, filtros } });
       if (error) {
         let texto = 'Não foi possível concluir a busca agora.';
         try { const det = await error.context.json(); if (det && det.erro) texto = det.erro; } catch (e) { /* sem detalhe */ }
@@ -292,14 +316,20 @@
   }
 
   function iniciarBusca() {
-    $('ia-exemplos').innerHTML = EXEMPLOS.map(t => `<button class="selo selo-neutro chip" type="button">${esc(t)}</button>`).join('');
-    $('ia-exemplos').addEventListener('click', ev => { const c = ev.target.closest('.chip'); if (c) { $('ia-pergunta').value = c.textContent; $('ia-pergunta').focus(); } });
+    $('ia-filtros').innerHTML = Object.entries(FILTROS).map(([k, g]) => `
+      <fieldset class="ia-grupo"><legend>${esc(g.titulo)}</legend>
+        <div class="chips">${Object.entries(g.opcoes).map(([v, r]) => `<button class="selo selo-neutro chip" type="button" data-grupo="${k}" data-valor="${v}" aria-pressed="false">${esc(r)}</button>`).join('')}</div>
+      </fieldset>`).join('');
+    $('ia-filtros').addEventListener('click', ev => {
+      const c = ev.target.closest('.chip'); if (!c) return;
+      c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true'));
+    });
     $('ia-form').addEventListener('submit', buscarIA);
     $('ia-resultados').addEventListener('click', ev => { const a = ev.target.closest('button[data-id]'); if (a) abrirPorId(a.dataset.id, a); });
     $('ia-historico').addEventListener('click', ev => {
       const h = ev.target.closest('[data-hist]'); if (!h) return;
       const item = historico.find(x => String(x.id) === h.dataset.hist);
-      if (item) { $('ia-pergunta').value = item.pergunta; $('ia-resultados').innerHTML = htmlResultados(item.resultados || {}); }
+      if (item) { $('ia-pergunta').value = item.pergunta; aplicarFiltros((item.resultados || {}).filtros); $('ia-resultados').innerHTML = htmlResultados(item.resultados || {}); }
     });
   }
 

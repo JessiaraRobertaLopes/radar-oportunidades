@@ -25,6 +25,31 @@ const CORS = {
 const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
+// Filtros escolhidos na tela (só valores conhecidos entram no prompt)
+const FILTROS: Record<string, Record<string, string>> = {
+  abrangencia: { nacional: "nacional", estadual: "estadual, de Minas Gerais", municipal: "municipal, de Belo Horizonte", internacional: "internacional" },
+  tipo: { edital_publico: "edital ou chamamento público", emenda: "emenda parlamentar", privado: "fundação, instituto ou empresa privada", premio: "prêmio", credito: "linha de crédito ou financiamento" },
+  area: { pesquisa: "pesquisa", equipamentos: "compra de equipamentos", obras: "obras e infraestrutura", ensino: "ensino e residência", assistencia: "assistência à saúde", inovacao: "inovação e tecnologia", social: "projetos sociais e ESG" },
+};
+type Filtros = { abrangencia: string[]; tipo: string[]; area: string[]; prazo: "abertas" | "em_breve" };
+
+function limparFiltros(bruto: unknown): Filtros {
+  // deno-lint-ignore no-explicit-any
+  const f: any = bruto && typeof bruto === "object" ? bruto : {};
+  const lista = (k: string) => (Array.isArray(f[k]) ? f[k] : []).filter((v: unknown) => typeof v === "string" && v in FILTROS[k]).slice(0, 8);
+  return { abrangencia: lista("abrangencia"), tipo: lista("tipo"), area: lista("area"), prazo: f.prazo === "em_breve" ? "em_breve" : "abertas" };
+}
+
+function criteriosTexto(f: Filtros) {
+  const linha = (k: keyof typeof FILTROS, rotulo: string) =>
+    f[k as "abrangencia"].length ? `- ${rotulo}: ${f[k as "abrangencia"].map((v) => FILTROS[k][v]).join(" OU ")}` : "";
+  const linhas = [linha("abrangencia", "Abrangência"), linha("tipo", "Tipo de oportunidade"), linha("area", "Área do projeto")].filter(Boolean);
+  linhas.push(f.prazo === "em_breve"
+    ? "- Prazo: inscrições abertas agora OU que vão abrir em breve (anunciadas)"
+    : "- Prazo: só inscrições abertas agora (ou fluxo contínuo)");
+  return linhas.join("\n");
+}
+
 // Lê o primeiro objeto JSON da resposta da IA
 function extrairJson(texto: string) {
   const ini = texto.indexOf("{");
@@ -63,10 +88,12 @@ Deno.serve(async (req) => {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return json({ erro: "Sessão inválida. Entre novamente." }, 401);
 
-  let corpo: { pergunta?: string; incluir_web?: boolean };
+  let corpo: { pergunta?: string; incluir_web?: boolean; filtros?: unknown };
   try { corpo = await req.json(); } catch { return json({ erro: "Requisição inválida." }, 400); }
   const pergunta = String(corpo.pergunta ?? "").trim();
   const incluirWeb = corpo.incluir_web === true;
+  const filtros = limparFiltros(corpo.filtros);
+  const criterios = criteriosTexto(filtros);
   if (pergunta.length < 10 || pergunta.length > 2000) {
     return json({ erro: "Descreva o projeto com 10 a 2.000 caracteres." }, 400);
   }
@@ -115,10 +142,14 @@ Deno.serve(async (req) => {
 PROJETO QUE A EQUIPE QUER FINANCIAR:
 """${pergunta}"""
 
+CRITÉRIOS ESCOLHIDOS PELA EQUIPE (respeite; dentro de cada critério, qualquer opção listada serve):
+${criterios}
+
 EDITAIS ATIVOS NA BASE DO RADAR (ref | título | órgão | prazo | aceita filantrópico | resumo):
 ${lista}
 
-Escolha até 5 editais que realmente poderiam financiar ESTE projeto. Ignore os que não têm relação.
+Escolha até 5 editais que realmente poderiam financiar ESTE projeto e que atendam aos critérios.
+Ignore os que não têm relação ou que claramente fogem dos critérios (ex.: edital estadual de outro estado quando a equipe pediu MG).
 Responda APENAS com JSON:
 {"resultados": [{"ref": "e1", "aderencia": 0-100, "justificativa": "1 a 2 frases ligando o edital ao projeto"}]}
 Se nenhum servir, responda {"resultados": []}.`);
@@ -140,10 +171,13 @@ Se nenhum servir, responda {"resultados": []}.`);
   if (incluirWeb) {
     try {
       const r = await perguntar(MODELO_WEB,
-`Hoje é ${hoje}. Busque na web editais, chamamentos ou programas de financiamento com INSCRIÇÕES ABERTAS
-(ou de fluxo contínuo) que possam financiar este projeto da ${INSTITUICAO}:
+`Hoje é ${hoje}. Busque na web oportunidades que possam financiar este projeto da ${INSTITUICAO}:
 """${pergunta}"""
-Ignore notícias, resultados e editais encerrados. Informe o link da página oficial do edital.
+
+CRITÉRIOS DA EQUIPE (use nas buscas e respeite no resultado):
+${criterios}
+
+Ignore notícias sem chamada, resultados e editais encerrados. Informe o link da página oficial do edital.
 Responda APENAS com JSON (até 4 itens):
 {"resultados": [{"titulo": "...", "orgao": "...", "url": "https://...", "prazo": "AAAA-MM-DD ou null", "justificativa": "1 a 2 frases"}]}`,
         [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }]);
@@ -160,7 +194,7 @@ Responda APENAS com JSON (até 4 itens):
     }
   }
 
-  const resultados = { da_base: daBase, da_web: daWeb, erro_web: erroWeb, incluiu_web: incluirWeb };
+  const resultados = { da_base: daBase, da_web: daWeb, erro_web: erroWeb, incluiu_web: incluirWeb, filtros };
   await sb.from("buscas_ia").insert({
     usuario_id: user.id, tipo: "projeto", pergunta,
     resultados, total_resultados: daBase.length + daWeb.length,
