@@ -1,0 +1,29 @@
+name: Radar - Resumo diário de prazos
+
+# Todo dia útil às 07h50 (Brasília): manda ao Teams o que está parado e com prazo chegando.
+# Não usa IA (custo zero). Também pode rodar pelo botão "Run workflow".
+on:
+  schedule:
+    - cron: '50 10 * * 1-5'   # seg a sex, 07h50 de Brasília
+  workflow_dispatch:
+
+jobs:
+  alertas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Montar e enviar o resumo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python alertas.py
