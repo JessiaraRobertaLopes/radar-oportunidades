@@ -44,7 +44,8 @@
       status: $('ed-status').value,
       ordem: $('ed-ordem').value
     };
-    let l = App.editais().filter(ativo);
+    // descartados só aparecem quando o filtro de etapa pede "Descartado"
+    let l = App.editais().filter(e => ativo(e) && (f.status === 'descartado' || e.status !== 'descartado'));
     if (f.prioridade) l = l.filter(e => e.prioridade === f.prioridade);
     if (f.situacao) l = l.filter(e => e.situacao === f.situacao);
     if (f.status) l = l.filter(e => e.status === f.status);
@@ -158,7 +159,7 @@
 
   function renderDashboard() {
     const todos = App.editais();
-    const ativos = todos.filter(ativo);
+    const ativos = todos.filter(e => ativo(e) && e.status !== 'descartado');
     const emGestao = todos.filter(e => e.status !== 'novo');
     const vence7 = ativos.filter(e => e.dias !== null && e.dias <= 7);
     const potencial = emGestao.filter(e => ['em_analise', 'encaminhado', 'aprovado'].includes(e.status)).reduce((s, e) => s + (Number(e.valorEstimado) || 0), 0);

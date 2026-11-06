@@ -106,7 +106,9 @@
   }
 
   const ativo = e => e.situacao !== 'encerrado' && (e.dias === null || e.dias >= 0);
-  const pontual = e => ativo(e) && e.situacao !== 'fluxo_continuo';
+  // Descartado sai das listas de garimpo (continua na Gestão e, se tiver estrela, em Monitorando)
+  const naoDescartado = e => e.status !== 'descartado';
+  const pontual = e => ativo(e) && naoDescartado(e) && e.situacao !== 'fluxo_continuo';
 
   // Visões das abas
   const VISOES = {
@@ -114,11 +116,11 @@
       .sort((a, b) => new Date(b.encontradoEm) - new Date(a.encontradoEm)),
     'prioridade-a': l => l.filter(e => pontual(e) && e.prioridade === 'A')
       .sort((a, b) => b.aderencia - a.aderencia),
-    'prazo': l => l.filter(e => e.dias !== null && e.dias >= 0 && e.dias <= 7)
+    'prazo': l => l.filter(e => naoDescartado(e) && e.dias !== null && e.dias >= 0 && e.dias <= 7)
       .sort((a, b) => a.dias - b.dias),
     'em-analise': l => l.filter(e => ativo(e) && e.status === 'em_analise')
       .sort((a, b) => (a.dias ?? 9999) - (b.dias ?? 9999)),
-    'fluxo-continuo': l => l.filter(e => ativo(e) && e.situacao === 'fluxo_continuo')
+    'fluxo-continuo': l => l.filter(e => ativo(e) && naoDescartado(e) && e.situacao === 'fluxo_continuo')
       .sort((a, b) => b.aderencia - a.aderencia),
     // monitorados aparecem mesmo vencidos ou descartados
     'monitorando': l => l.filter(e => e.monitorado)
