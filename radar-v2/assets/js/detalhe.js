@@ -99,9 +99,13 @@
     // Quais etapas este perfil pode escolher
     const permitidas = Editais.ETAPAS_POR_PAPEL[papel] || Editais.ETAPAS_POR_PAPEL.captacao;
     const decidido = ['aprovado', 'reprovado'].includes(e.status);
-    const bloqueado = (papel === 'captacao' && decidido) || (papel === 'projetos' && !permitidas.includes(e.status));
-    const opcoes = permitidas.includes(e.status) ? permitidas : [e.status, ...permitidas];
-    const opcoesStatus = opcoes.map(v => `<option value="${v}" ${v === e.status ? 'selected' : ''}>${esc(Editais.ROTULO_STATUS[v])}</option>`).join('');
+    // Captação recupera reprovado (volta para Em análise); aprovado fica travado
+    const bloqueado = (papel === 'captacao' && e.status === 'aprovado') || (papel === 'projetos' && !permitidas.includes(e.status));
+    let opcoes = permitidas.includes(e.status) ? permitidas : [e.status, ...permitidas];
+    if (papel === 'captacao' && e.status === 'reprovado') opcoes = ['reprovado', 'em_analise'];
+    const recuperavel = ['descartado', 'reprovado'].includes(e.status);
+    const rotulo = v => (recuperavel && v === 'em_analise') ? 'Recuperar para nova análise' : Editais.ROTULO_STATUS[v];
+    const opcoesStatus = opcoes.map(v => `<option value="${v}" ${v === e.status ? 'selected' : ''}>${esc(rotulo(v))}</option>`).join('');
     const ehProjetos = papel === 'projetos';
 
     if (bloqueado) {
@@ -110,7 +114,7 @@
           <h3>Gestão</h3>
           <p><span class="selo">${esc(Editais.ROTULO_STATUS[e.status])}</span></p>
           ${historico}
-          <p class="texto-3">${decidido ? 'Este edital já foi decidido pelo Setor de Projetos.' : 'Sem permissão para alterar esta etapa.'}</p>
+          <p class="texto-3">${decidido ? 'Este edital já foi aprovado pelo Setor de Projetos.' : 'Sem permissão para alterar esta etapa.'}</p>
         </section>`;
     }
 
@@ -125,8 +129,12 @@
             <select class="entrada" id="g-resp">${opcoesResp}</select></div>
           <div class="campo ${ehProjetos ? 'oculto' : ''}"><label for="g-prazo">Prazo interno</label>
             <input class="entrada" id="g-prazo" type="date" value="${esc(e.prazoInterno || '')}"></div>
-          <div class="campo ${ehProjetos ? 'oculto' : ''}"><label for="g-valor">Valor estimado (R$)</label>
-            <input class="entrada" id="g-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${e.valorEstimado ?? ''}" placeholder="0,00"></div>
+          <div class="campo ${ehProjetos ? 'oculto' : ''}"><label for="g-valor">Potencial de captação para a Santa Casa BH (R$)</label>
+            <input class="entrada" id="g-valor" type="number" min="0" step="0.01" inputmode="decimal" value="${e.valorEstimado ?? ''}" placeholder="0,00">
+            <small class="texto-3">Quanto a Santa Casa BH pode de fato captar, e não o valor total do edital. Ex.: edital de R$ 1 milhão, linha aplicável de R$ 500 mil, potencial de R$ 200 mil.</small></div>
+          <div class="campo oculto" id="g-just-campo"><label for="g-just">Justificativa <span class="obrigatorio">(obrigatória)</span></label>
+            <textarea class="entrada" id="g-just" rows="3" maxlength="1000" placeholder="Explique em poucas palavras, para quem ler depois entender a decisão."></textarea>
+            <small class="texto-3">A justificativa fica registrada nas anotações do edital.</small></div>
           <div class="g-form-acoes">
             <span id="g-msg" class="texto-3" role="status" aria-live="polite"></span>
             <button class="btn btn-primario" type="submit" id="g-salvar">${ehProjetos ? 'Salvar decisão' : 'Salvar gestão'}</button>
@@ -174,6 +182,46 @@
     }
   }
 
+  const podeMonitorar = () => ['captacao', 'admin'].includes((perfilAtual || {}).papel || 'captacao');
+
+  function htmlMonitor(e) {
+    if (!e.monitorado) return '';
+    return `<div class="g-monitor">${I.estrela}<span><strong>Em monitoramento</strong>${e.motivoMonitorar ? ': ' + esc(e.motivoMonitorar) : ''}
+      <small class="texto-3">${e.monitoradoEm ? 'desde ' + esc(dataBR(e.monitoradoEm)) : ''}</small></span></div>`;
+  }
+
+  function prepararMonitor(e) {
+    const b = document.getElementById('g-monitorar');
+    if (!b) return;
+    b.addEventListener('click', async () => {
+      const area = document.getElementById('g-monitor-area');
+      if (e.monitorado) {
+        if (!confirm('Parar de monitorar este edital?')) return;
+        try { await Editais.deixarDeMonitorar(e.id); Object.assign(e, { monitorado: false, motivoMonitorar: null }); aoSalvar(e); abrir(e, ultimoFoco); }
+        catch (err) { console.error(err); alert('Não foi possível alterar o monitoramento.'); }
+        return;
+      }
+      area.innerHTML = `
+        <form class="g-monitor-form" id="g-monitor-form" novalidate>
+          <label for="g-monitor-motivo">Por que monitorar? <span class="texto-3">(opcional)</span></label>
+          <input class="entrada" id="g-monitor-motivo" maxlength="300" placeholder="Ex.: programa recorrente, deve reabrir em 2027">
+          <div class="g-form-acoes"><button class="btn btn-secundario" type="button" id="g-monitor-cancelar">Cancelar</button>
+          <button class="btn btn-primario" type="submit">Monitorar</button></div>
+        </form>`;
+      document.getElementById('g-monitor-motivo').focus();
+      document.getElementById('g-monitor-cancelar').addEventListener('click', () => { area.innerHTML = htmlMonitor(e); });
+      document.getElementById('g-monitor-form').addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const motivo = document.getElementById('g-monitor-motivo').value.trim();
+        try {
+          await Editais.monitorar(e.id, motivo);
+          Object.assign(e, { monitorado: true, motivoMonitorar: motivo || null, monitoradoEm: new Date().toISOString(), monitoradoPor: perfilAtual.id });
+          aoSalvar(e); abrir(e, ultimoFoco);
+        } catch (err) { console.error(err); alert('Não foi possível marcar o monitoramento.'); }
+      });
+    });
+  }
+
   async function abrir(e, origem) {
     editalAtual = e;
     ultimoFoco = origem || document.activeElement;
@@ -191,11 +239,15 @@
           <span class="selo ${e.situacao === 'aberto' ? '' : 'selo-neutro'}">${esc(Editais.ROTULO_SITUACAO[e.situacao] || e.situacao)}</span>
           ${conferir ? '<span class="selo selo-neutro">Conferir no site</span>' : ''}
         </div>
-        <button class="btn-icone" type="button" id="g-fechar" aria-label="Fechar">${I.fechar}</button>
+        <div class="g-topo-acoes">
+          ${podeMonitorar() ? `<button class="btn ${e.monitorado ? 'btn-secundario monitorando' : 'btn-fantasma'} btn-monitorar" type="button" id="g-monitorar" aria-pressed="${e.monitorado}">${I.estrela}${e.monitorado ? 'Monitorando' : 'Monitorar'}</button>` : ''}
+          <button class="btn-icone" type="button" id="g-fechar" aria-label="Fechar">${I.fechar}</button>
+        </div>
       </header>
       <div class="g-corpo">
         <h2 id="g-titulo" class="titulo-l">${esc(e.titulo)}</h2>
         <p class="g-orgao">${I.predio}${esc(e.orgao || e.fonte)}${e.numero ? ` · Nº ${esc(e.numero)}` : ''}</p>
+        <div id="g-monitor-area">${htmlMonitor(e)}</div>
 
         <div class="g-acoes">
           ${linkEdital ? `<a class="btn btn-primario" href="${esc(linkEdital)}" target="_blank" rel="noopener">Abrir edital</a>` : ''}
@@ -205,7 +257,7 @@
         <div class="fatos">
           ${fato('Prazo de inscrição', textoPrazo(e), urgente ? 'urgente' : '')}
           ${fato('Aceita filantrópico', Editais.ROTULO_FILANTROPICO[e.aceitaFilantropico])}
-          ${fato('Valor', e.valor)}
+          ${fato('Valor total do edital', e.valor)}
           ${fato('Aderência', `${e.aderencia}% · Prioridade ${e.prioridade} (${NOME_PRIORIDADE[e.prioridade] || ''})`)}
           ${fato('Abertura', dataBR(e.dataAbertura))}
           ${fato('Encontrado em', dataBR(e.encontradoEm))}
@@ -227,12 +279,20 @@
     gaveta.scrollTop = 0;
     document.body.style.overflow = 'hidden';
     document.getElementById('g-fechar').addEventListener('click', fechar);
+    prepararMonitor(e);
     document.getElementById('g-fechar').focus();
 
     // Gestão
     document.getElementById('g-gestao').innerHTML = await htmlGestao(e);
     if (editalAtual !== e) return;
     const form = document.getElementById('g-form');
+    const precisaJust = v => v !== e.status && (['descartado', 'reprovado'].includes(v) || (['descartado', 'reprovado'].includes(e.status) && v === 'em_analise'));
+    const seletor = document.getElementById('g-status');
+    const mostrarJust = () => {
+      const campo = document.getElementById('g-just-campo');
+      if (campo) campo.classList.toggle('oculto', !precisaJust(seletor.value));
+    };
+    if (seletor) { seletor.addEventListener('change', mostrarJust); mostrarJust(); }
     if (form) form.addEventListener('submit', async ev => {
       ev.preventDefault();
       const btn = document.getElementById('g-salvar');
@@ -243,6 +303,12 @@
         prazoInterno: document.getElementById('g-prazo').value,
         valorEstimado: document.getElementById('g-valor').value
       };
+      if (campos.status !== e.status) campos.justificativa = document.getElementById('g-just').value.trim();
+      if (precisaJust(campos.status) && (campos.justificativa || '').length < 10) {
+        msg.textContent = 'Escreva a justificativa (pelo menos 10 caracteres) antes de salvar.';
+        document.getElementById('g-just').focus();
+        return;
+      }
       btn.disabled = true; msg.textContent = 'Salvando';
       try {
         const g = await Editais.salvarGestao(e.id, campos, e.temGestao);
@@ -258,7 +324,7 @@
       } catch (err) {
         console.error(err);
         // as regras do banco devolvem mensagens já em português
-        const texto = /Projetos|decidido|permissão/.test(err.message || '') ? err.message : 'Não foi possível salvar. Tente de novo.';
+        const texto = /Projetos|decidido|aprovado|reprovado|permissão|justificativa|recuperar/i.test(err.message || '') ? err.message : 'Não foi possível salvar. Tente de novo.';
         msg.textContent = texto;
         btn.disabled = false;
       }

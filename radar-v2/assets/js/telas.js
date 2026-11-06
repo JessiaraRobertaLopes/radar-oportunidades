@@ -14,7 +14,7 @@
   const NOME_PRIORIDADE = { A: 'Alta', B: 'Boa', C: 'Média', D: 'Baixa' };
   let App = null;
   let telaAtual = 'inicio';
-  let soMeus = false;
+  let filtroGestao = 'todos'; // todos | meus | monitorados
   let arquivoCache = null;
 
   const $ = id => document.getElementById(id);
@@ -69,7 +69,8 @@
     try { nomes = new Map((await Editais.perfis()).map(p => [p.id, p.nome])); } catch (e) { console.error(e); }
     const meu = App.perfil().id;
     let l = App.editais().filter(e => e.status !== 'novo');
-    if (soMeus) l = l.filter(e => e.responsavelId === meu);
+    if (filtroGestao === 'meus') l = l.filter(e => e.responsavelId === meu);
+    if (filtroGestao === 'monitorados') l = l.filter(e => e.monitorado);
     $('ge-quadro').innerHTML = etapasDoPerfil().map(etapa => {
       const itens = l.filter(e => e.status === etapa).sort((a, b) => (a.dias ?? 9999) - (b.dias ?? 9999));
       return `
@@ -83,7 +84,7 @@
                 <button class="mini-card cartao-interativo" type="button" data-id="${esc(e.id)}">
                   <div class="mini-topo"><span class="edital-prioridade p-${esc(e.prioridade)} mini"><strong>${esc(e.prioridade)}</strong></span>
                     <span class="prazo ${urgente ? 'urgente' : ''}">${urgente ? I.relogio : I.calendario}${esc(prazo)}</span></div>
-                  <strong class="mini-titulo">${esc(e.titulo)}</strong>
+                  <strong class="mini-titulo">${e.monitorado ? `<span class="estrela" title="Em monitoramento">${I.estrela}</span>` : ''}${esc(e.titulo)}</strong>
                   <span class="texto-3">${e.responsavelId ? esc(nomes.get(e.responsavelId) || 'Responsável') : 'Sem responsável'}${e.valorEstimado ? ' · ' + esc(moeda(e.valorEstimado)) : ''}</span>
                   ${tempoNaEtapa(e)}
                 </button>`;
@@ -168,7 +169,7 @@
       kpi('Prioridade A', ativos.filter(e => e.prioridade === 'A').length, 'aderência de 80% ou mais', I.alerta2),
       kpi('Vencem em 7 dias', vence7.length, vence7.length ? 'atenção aos prazos' : 'nenhum prazo apertado', I.relogio),
       kpi('Em gestão pela equipe', emGestao.length, `${plural(emGestao.filter(e => e.status === 'encaminhado').length, 'encaminhado')} · ${plural(emGestao.filter(e => e.status === 'aprovado').length, 'aprovado')}`, I.pipeline),
-      kpi('Valor em potencial', moeda(potencial), 'em análise, encaminhados e aprovados', I.grafico),
+      kpi('Potencial de captação', moeda(potencial), 'para a Santa Casa BH: em análise, encaminhados e aprovados', I.grafico),
       kpi('Valor aprovado', moeda(aprovado), 'aprovados pelo Setor de Projetos', I.ok)
     ].join('');
 
@@ -241,6 +242,10 @@
     return partes.join(' · ');
   }
 
+  // Resultado que combina com o projeto mas foge de algum filtro marcado
+  const foraDoFiltro = x => x && x.atende_criterios === false
+    ? `<span class="selo selo-neutro selo-fora" title="Combina com o projeto, mas não atende a todos os filtros marcados">Fora do filtro: ${esc(x.fora_do_filtro || 'outro critério')}</span>` : '';
+
   function htmlResultados(r) {
     const base = r.da_base || [], web = r.da_web || [];
     let html = `<section class="secao-resultado"><h2 class="titulo-m">No Radar <span class="contador">${base.length}</span></h2>`;
@@ -250,7 +255,7 @@
         <span class="resultado-corpo"><strong>${esc(b.titulo)}</strong>
           <span class="texto-3">${esc(b.orgao || '')}${b.prazo ? ' · prazo ' + esc(dataBR(b.prazo)) : ''}</span>
           <span class="resultado-just">${esc(b.justificativa || '')}</span></span>
-        <span class="selo">${esc(b.aderencia)}% para este projeto</span>
+        <span class="resultado-selos"><span class="selo">${esc(b.aderencia)}% para este projeto</span>${foraDoFiltro(b)}</span>
       </button>`).join('')}</div>` : '<p class="texto-3">Nenhum edital da base do Radar combina com este projeto.</p>';
     html += '</section>';
     if (r.incluiu_web) {
@@ -263,7 +268,7 @@
           <span class="resultado-corpo"><strong>${esc(w.titulo)}</strong>
             <span class="texto-3">${esc(w.orgao || '')}${w.prazo ? ' · prazo ' + esc(dataBR(w.prazo)) : ''}</span>
             <span class="resultado-just">${esc(w.justificativa || '')}</span></span>
-          <span class="selo selo-neutro">Abrir site</span>
+          <span class="resultado-selos"><span class="selo selo-neutro">Abrir site</span>${foraDoFiltro(w)}</span>
         </a>`).join('')}</div>` : (r.erro_web ? '' : '<p class="texto-3">Nada encontrado na web desta vez.</p>');
       html += '</section>';
     }
@@ -403,7 +408,22 @@
     window.scrollTo(0, 0);
   }
 
+  // Aviso no menu: quantos editais esperam a decisão do Setor de Projetos
+  function avisoMenu() {
+    const item = document.querySelector('.nav-item[data-destino="gestao"]');
+    if (!item) return;
+    let b = item.querySelector('.nav-aviso');
+    const papel = App.perfil().papel;
+    const qtd = ['projetos', 'admin'].includes(papel) ? App.editais().filter(e => e.status === 'encaminhado').length : 0;
+    if (!qtd) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('span'); b.className = 'nav-aviso'; item.appendChild(b); }
+    b.textContent = qtd;
+    b.title = `${qtd} edita${qtd === 1 ? 'l' : 'is'} aguardando decisão do Setor de Projetos`;
+    item.setAttribute('aria-label', `Gestão, ${b.title}`);
+  }
+
   function atualizar() {
+    avisoMenu();
     if (telaAtual === 'editais') renderEditais();
     if (telaAtual === 'gestao') renderGestao();
     if (telaAtual === 'arquivo') renderArquivo();
@@ -420,7 +440,7 @@
       $(id).addEventListener(id === 'ed-busca' ? 'input' : 'change', renderEditais));
     $('ar-busca').addEventListener('input', renderArquivo);
     document.querySelectorAll('#ge-filtro .aba').forEach(b => b.addEventListener('click', () => {
-      soMeus = b.dataset.meus === 'sim';
+      filtroGestao = b.dataset.meus === 'sim' ? 'meus' : b.dataset.meus === 'monitorados' ? 'monitorados' : 'todos';
       document.querySelectorAll('#ge-filtro .aba').forEach(x => x.setAttribute('aria-selected', String(x === b)));
       renderGestao();
     }));

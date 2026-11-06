@@ -37,17 +37,20 @@
   // Leitura principal
   // ---------------------------------------------------------------------
   async function carregar() {
-    const [qual, gestao] = await Promise.all([
+    const [qual, gestao, monit] = await Promise.all([
       sb.from('qualifications')
         .select('*, opportunities(*, sources(name))')
         .order('score', { ascending: false })
         .limit(1000),
-      sb.from('pipeline').select('opportunity_id, status, responsavel_id, prazo_interno, valor_estimado, atualizado_em, etapa_desde, encaminhado_por, encaminhado_em, decidido_por, decidido_em')
+      sb.from('pipeline').select('opportunity_id, status, responsavel_id, prazo_interno, valor_estimado, atualizado_em, etapa_desde, encaminhado_por, encaminhado_em, decidido_por, decidido_em'),
+      sb.from('monitorados').select('opportunity_id, motivo, marcado_por, marcado_em')
     ]);
     if (qual.error) throw qual.error;
     if (gestao.error) throw gestao.error;
 
     const gestaoPor = new Map((gestao.data || []).map(g => [g.opportunity_id, g]));
+    // monitorados: se a tabela ainda não existir, o resto do Radar continua funcionando
+    const monitPor = new Map(((monit && !monit.error && monit.data) || []).map(m => [m.opportunity_id, m]));
     const vistos = new Set();
     const lista = [];
 
@@ -58,6 +61,7 @@
       if (o.duplicado_de) continue;        // repetido marcado pela limpeza
       vistos.add(id);
       const g = gestaoPor.get(id) || {};
+      const m = monitPor.get(id);
       lista.push({
         id,
         titulo: o.title || 'Edital sem título',
@@ -91,7 +95,11 @@
         encaminhadoPor: g.encaminhado_por || null,
         encaminhadoEm: g.encaminhado_em || null,
         decididoPor: g.decidido_por || null,
-        decididoEm: g.decidido_em || null
+        decididoEm: g.decidido_em || null,
+        monitorado: !!m,
+        monitoradoPor: m ? m.marcado_por : null,
+        monitoradoEm: m ? m.marcado_em : null,
+        motivoMonitorar: m ? m.motivo : null
       });
     }
     return lista;
@@ -111,7 +119,10 @@
     'em-analise': l => l.filter(e => ativo(e) && e.status === 'em_analise')
       .sort((a, b) => (a.dias ?? 9999) - (b.dias ?? 9999)),
     'fluxo-continuo': l => l.filter(e => ativo(e) && e.situacao === 'fluxo_continuo')
-      .sort((a, b) => b.aderencia - a.aderencia)
+      .sort((a, b) => b.aderencia - a.aderencia),
+    // monitorados aparecem mesmo vencidos ou descartados
+    'monitorando': l => l.filter(e => e.monitorado)
+      .sort((a, b) => new Date(b.monitoradoEm) - new Date(a.monitoradoEm))
   };
 
   function filtrarTexto(lista, termo) {
@@ -177,6 +188,15 @@
     return _perfis;
   }
 
+  async function monitorar(opportunityId, motivo) {
+    const { error } = await sb.from('monitorados').insert({ opportunity_id: opportunityId, motivo: motivo || null });
+    if (error) throw error;
+  }
+  async function deixarDeMonitorar(opportunityId) {
+    const { error } = await sb.from('monitorados').delete().eq('opportunity_id', opportunityId);
+    if (error) throw error;
+  }
+
   // Atualiza se o edital já tem gestão; cria se ainda não tem.
   // (não usa upsert: o banco aplica regras diferentes para criar e para mudar de etapa)
   async function salvarGestao(opportunityId, campos, jaExiste) {
@@ -186,6 +206,8 @@
       prazo_interno: campos.prazoInterno || null,
       valor_estimado: campos.valorEstimado === '' || campos.valorEstimado == null ? null : Number(campos.valorEstimado)
     };
+    // justificativa só vai quando a etapa muda (o banco exige ao descartar, reprovar e recuperar)
+    if (campos.justificativa !== undefined) registro.justificativa = campos.justificativa || null;
     const { data, error } = jaExiste
       ? await sb.from('pipeline').update(registro).eq('opportunity_id', opportunityId).select().single()
       : await sb.from('pipeline').insert({ opportunity_id: opportunityId, ...registro }).select().single();
@@ -239,6 +261,6 @@
     carregar, VISOES, filtrarTexto, diasAtePrazo,
     ROTULO_STATUS, ROTULO_SITUACAO, ROTULO_FILANTROPICO, ETAPAS_POR_PAPEL,
     diasUteisDesde, alerta,
-    perfis, salvarGestao, anotacoes, adicionarAnotacao, excluirAnotacao
+    perfis, salvarGestao, monitorar, deixarDeMonitorar, anotacoes, adicionarAnotacao, excluirAnotacao
   };
 })();

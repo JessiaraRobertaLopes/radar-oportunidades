@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Início | Radar de Oportunidades</title>
 <link rel="icon" type="image/png" href="assets/img/favicon.png">
-<link rel="stylesheet" href="assets/css/orix.css">
+<link rel="stylesheet" href="assets/css/orix.css?v=20261106a">
 <style>
   .layout { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
 
@@ -212,6 +212,7 @@
           <button class="tab" role="tab" aria-selected="false" type="button" data-aba="prazo">Prazo em 7 dias</button>
           <button class="tab" role="tab" aria-selected="false" type="button" data-aba="em-analise">Em análise</button>
           <button class="tab" role="tab" aria-selected="false" type="button" data-aba="fluxo-continuo">Fluxo contínuo</button>
+          <button class="tab" role="tab" aria-selected="false" type="button" data-aba="monitorando">Monitorando</button>
         </div>
         <div class="painel-abas" id="lista-oportunidades">
           <div class="lista-editais">
@@ -246,6 +247,7 @@
           <div class="abas abas-compactas" role="tablist" id="ge-filtro">
             <button class="aba" role="tab" type="button" aria-selected="true" data-meus="nao">Todos</button>
             <button class="aba" role="tab" type="button" aria-selected="false" data-meus="sim">Só os meus</button>
+            <button class="aba" role="tab" type="button" aria-selected="false" data-meus="monitorados">Monitorados</button>
           </div></div>
         <div class="quadro anima" style="--atraso:80ms" id="ge-quadro"></div>
       </section>
@@ -379,12 +381,12 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
-<script src="assets/js/config.js"></script>
-<script src="assets/js/base.js"></script>
-<script src="assets/js/editais.js"></script>
-<script src="assets/js/detalhe.js"></script>
-<script src="assets/js/telas.js"></script>
-<script src="assets/js/admin.js"></script>
+<script src="assets/js/config.js?v=20261106a"></script>
+<script src="assets/js/base.js?v=20261106a"></script>
+<script src="assets/js/editais.js?v=20261106a"></script>
+<script src="assets/js/detalhe.js?v=20261106a"></script>
+<script src="assets/js/telas.js?v=20261106a"></script>
+<script src="assets/js/admin.js?v=20261106a"></script>
 <script>
 (async () => {
   const sessao = await Radar.exigirLogin();
@@ -477,7 +479,7 @@
           <strong>${esc(e.prioridade)}</strong><span>${esc(NOME_PRIORIDADE[e.prioridade] || '')}</span>
         </div>
         <div>
-          <div class="edital-titulo">${esc(e.titulo)}</div>
+          <div class="edital-titulo">${e.monitorado ? `<span class="estrela" title="Em monitoramento">${I.estrela}</span>` : ''}${esc(e.titulo)}</div>
           <div class="edital-fonte">${I.predio}${esc(e.fonte)}</div>
           <div class="aderencia">
             <div class="aderencia-barra"><i style="width:${Math.min(100, Math.max(0, e.aderencia))}%"></i></div>

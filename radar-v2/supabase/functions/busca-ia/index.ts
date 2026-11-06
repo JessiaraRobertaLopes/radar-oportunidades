@@ -142,27 +142,34 @@ Deno.serve(async (req) => {
 PROJETO QUE A EQUIPE QUER FINANCIAR:
 """${pergunta}"""
 
-CRITÉRIOS ESCOLHIDOS PELA EQUIPE (respeite; dentro de cada critério, qualquer opção listada serve):
+CRITÉRIOS ESCOLHIDOS PELA EQUIPE (dentro de cada critério, qualquer opção listada serve):
 ${criterios}
 
 EDITAIS ATIVOS NA BASE DO RADAR (ref | título | órgão | prazo | aceita filantrópico | resumo):
 ${lista}
 
-Escolha até 5 editais que realmente poderiam financiar ESTE projeto e que atendam aos critérios.
-Ignore os que não têm relação ou que claramente fogem dos critérios (ex.: edital estadual de outro estado quando a equipe pediu MG).
+Escolha até 5 editais que realmente poderiam financiar ESTE projeto. Ignore só os que não têm relação com o projeto.
+NÃO descarte um edital bom por causa dos critérios: inclua-o e marque "atende_criterios": false, dizendo em
+"fora_do_filtro" qual critério ele não atende, em poucas palavras (ex.: "linha de crédito", "estadual, não municipal").
+Se nenhum critério foi marcado além do prazo, ou se o edital atende a todos, use "atende_criterios": true e "fora_do_filtro": null.
 Responda APENAS com JSON:
-{"resultados": [{"ref": "e1", "aderencia": 0-100, "justificativa": "1 a 2 frases ligando o edital ao projeto"}]}
+{"resultados": [{"ref": "e1", "aderencia": 0-100, "justificativa": "1 a 2 frases ligando o edital ao projeto",
+  "atende_criterios": true, "fora_do_filtro": null}]}
 Se nenhum servir, responda {"resultados": []}.`);
     entrada += r.entrada; saida += r.saida;
     const porRef = new Map(base.map((b) => [b.ref, b]));
     daBase = (extrairJson(r.texto).resultados ?? [])
       .filter((x: { ref: string }) => porRef.has(x.ref))
-      .map((x: { ref: string; aderencia: number; justificativa: string }) => {
+      .map((x: { ref: string; aderencia: number; justificativa: string; atende_criterios?: boolean; fora_do_filtro?: string | null }) => {
         const b = porRef.get(x.ref)!;
+        const fora = x.atende_criterios === false;
         return { id: b.id, titulo: b.titulo, orgao: b.orgao, prazo: b.prazo, tier: b.tier,
-          aderencia: Math.max(0, Math.min(100, Math.round(Number(x.aderencia) || 0))), justificativa: x.justificativa };
+          aderencia: Math.max(0, Math.min(100, Math.round(Number(x.aderencia) || 0))), justificativa: x.justificativa,
+          atende_criterios: !fora, fora_do_filtro: fora ? String(x.fora_do_filtro || "outro critério").slice(0, 60) : null };
       })
-      .sort((a: { aderencia: number }, b: { aderencia: number }) => b.aderencia - a.aderencia);
+      // primeiro os que atendem aos filtros; dentro de cada grupo, maior aderência
+      .sort((a: { aderencia: number; atende_criterios: boolean }, b: { aderencia: number; atende_criterios: boolean }) =>
+        (Number(b.atende_criterios) - Number(a.atende_criterios)) || (b.aderencia - a.aderencia));
   }
 
   // ---------- 2) Web (opcional) ----------
@@ -174,12 +181,13 @@ Se nenhum servir, responda {"resultados": []}.`);
 `Hoje é ${hoje}. Busque na web oportunidades que possam financiar este projeto da ${INSTITUICAO}:
 """${pergunta}"""
 
-CRITÉRIOS DA EQUIPE (use nas buscas e respeite no resultado):
+CRITÉRIOS DA EQUIPE (use nas buscas; prefira o que atende a eles):
 ${criterios}
 
 Ignore notícias sem chamada, resultados e editais encerrados. Informe o link da página oficial do edital.
 Responda APENAS com JSON (até 4 itens):
-{"resultados": [{"titulo": "...", "orgao": "...", "url": "https://...", "prazo": "AAAA-MM-DD ou null", "justificativa": "1 a 2 frases"}]}`,
+{"resultados": [{"titulo": "...", "orgao": "...", "url": "https://...", "prazo": "AAAA-MM-DD ou null", "justificativa": "1 a 2 frases",
+  "atende_criterios": true, "fora_do_filtro": "null, ou o critério que não atende em poucas palavras"}]}`,
         [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }]);
       entrada += r.entrada; saida += r.saida;
       daWeb = (extrairJson(r.texto).resultados ?? [])
@@ -187,7 +195,13 @@ Responda APENAS com JSON (até 4 itens):
         // descarta o que a IA trouxe já vencido (prazo antes de hoje)
         .filter((x: { prazo?: string | null }) => !/^\d{4}-\d{2}-\d{2}$/.test(String(x.prazo ?? "")) || String(x.prazo) >= hoje)
         .filter((x: { justificativa?: string }) => !/encerrad|vencid|expirad/i.test(x.justificativa ?? ""))
-        .slice(0, 4);
+        .slice(0, 4)
+        .map((x: Record<string, unknown>) => {
+          const fora = x.atende_criterios === false;
+          const motivo = fora && x.fora_do_filtro && x.fora_do_filtro !== "null" ? String(x.fora_do_filtro).slice(0, 60) : "outro critério";
+          return { ...x, atende_criterios: !fora, fora_do_filtro: fora ? motivo : null };
+        })
+        .sort((a: { atende_criterios: boolean }, b: { atende_criterios: boolean }) => Number(b.atende_criterios) - Number(a.atende_criterios));
     } catch (e) {
       console.error(e);
       erroWeb = "A busca na web não respondeu desta vez. Os resultados da base do Radar continuam válidos.";
