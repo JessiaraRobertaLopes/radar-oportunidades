@@ -1,11 +1,10 @@
 name: Radar - Notícias pré-edital
 
-# Execução manual (botão "Run workflow" no GitHub Actions).
-# Custo: só a IA lendo manchetes (centavos). Para rodar sozinho toda segunda às 8h,
-# remova o "#" das 2 linhas de schedule abaixo.
+# Roda sozinho todo dia útil às 08h30 (Brasília) e também pelo botão "Run workflow".
+# Custo: só a IA lendo manchetes (centavos por execução).
 on:
-  # schedule:
-  #   - cron: '0 11 * * 1'
+  schedule:
+    - cron: '30 11 * * 1-5'   # seg a sex, 08h30 de Brasília
   workflow_dispatch:
 
 jobs:
