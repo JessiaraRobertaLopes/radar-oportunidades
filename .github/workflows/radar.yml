@@ -1,11 +1,12 @@
 name: Radar de Oportunidades v2
 
-# Roda sozinho toda segunda às 08h (Brasília) e também pelo botão "Run workflow".
+# Roda sozinho toda segunda às 07h17 (Brasília) e também pelo botão "Run workflow".
 # Custo aproximado: US$ 1,10 por execução (quase tudo da busca na web).
-# Para mudar o dia/hora, troque o cron (horário em UTC: 11 = 08h de Brasília).
+# Para mudar o dia/hora, troque o cron (horário em UTC: 10 = 07h de Brasília).
+# Evite minuto 0 (hora cheia): o GitHub atrasa ou descarta execuções nesse horário.
 on:
   schedule:
-    - cron: '0 11 * * 1'   # segunda, 08h de Brasília
+    - cron: '17 10 * * 1'   # segunda, 07h17 de Brasília
   workflow_dispatch:
     inputs:
       modo:
@@ -19,7 +20,7 @@ on:
       max_leituras:
         description: 'Máximo de editais lidos pela IA nesta execução (controla o custo)'
         required: true
-        default: '15'
+        default: '25'
 
 jobs:
   captar-e-qualificar:
