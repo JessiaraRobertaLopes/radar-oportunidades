@@ -318,3 +318,41 @@ def data_valida(valor):
 
 def resumo_custo():
     return f"{CUSTO['chamadas']} chamadas de IA | {CUSTO['entrada']:,} tokens de entrada | {CUSTO['saida']:,} tokens de saída"
+
+# ---------------------------------------------------------------------
+# Registro de execução: alimenta o selo "Última busca" do painel
+# ---------------------------------------------------------------------
+def origem_execucao():
+    """O GitHub informa se a rodada foi pelo agendamento ou pelo botão."""
+    return "automatica" if os.environ.get("GITHUB_EVENT_NAME") == "schedule" else "manual"
+
+
+def iniciar_execucao(robo, modo=None):
+    """Grava uma linha 'rodando' e devolve o id. Se o banco falhar, o robô segue normalmente."""
+    try:
+        linha = supabase().table("execucoes_robo").insert({
+            "robo": robo, "origem": origem_execucao(), "modo": modo, "status": "rodando",
+        }).execute().data
+        return linha[0]["id"]
+    except Exception as e:
+        print(f"  (não registrou o início da execução: {e})")
+        return None
+
+
+def finalizar_execucao(execucao_id, status, numeros=None, erro=None):
+    """Fecha a linha com 'sucesso' ou 'erro', os números da rodada e o custo de IA."""
+    if not execucao_id:
+        return
+    dados = {
+        "status": status,
+        "finalizado_em": agora_iso(),
+        "chamadas_ia": CUSTO["chamadas"],
+        "tokens_entrada": CUSTO["entrada"],
+        "tokens_saida": CUSTO["saida"],
+        "mensagem_erro": (str(erro)[:500] if erro else None),
+    }
+    dados.update(numeros or {})
+    try:
+        supabase().table("execucoes_robo").update(dados).eq("id", execucao_id).execute()
+    except Exception as e:
+        print(f"  (não registrou o fim da execução: {e})")
