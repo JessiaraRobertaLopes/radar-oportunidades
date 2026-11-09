@@ -1,10 +1,12 @@
 name: Radar - Notícias pré-edital
 
-# Roda sozinho todo dia útil às 08h30 (Brasília) e também pelo botão "Run workflow".
+# Roda sozinho todo dia útil às 07h43 (Brasília) e também pelo botão "Run workflow".
 # Custo: só a IA lendo manchetes (centavos por execução).
+# Horário em UTC: 10 = 07h de Brasília.
+# Evite minuto 0 ou 30: o GitHub atrasa ou descarta execuções nesses horários.
 on:
   schedule:
-    - cron: '30 11 * * 1-5'   # seg a sex, 08h30 de Brasília
+    - cron: '43 10 * * 1-5'   # seg a sex, 07h43 de Brasília
   workflow_dispatch:
 
 jobs:
