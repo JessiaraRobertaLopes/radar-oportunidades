@@ -98,6 +98,27 @@
     .layout.recolhido { grid-template-columns: 1fr; }
   }
 
+  /* ---------- Status do robô (Início) ---------- */
+  .status-robo {
+    margin-top: 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border: 1px solid var(--borda); border-radius: var(--raio);
+    background: var(--superficie); font-size: 13px; color: var(--texto-2);
+  }
+  .status-robo strong { color: var(--texto); font-weight: 600; }
+  .status-robo .ponto { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--texto-3); }
+  .status-robo .detalhe { margin-left: auto; font-size: 12px; color: var(--texto-3); }
+  .status-robo.ok .ponto { background: var(--sucesso); }
+  .status-robo.sem-novos .ponto { background: var(--azul); }
+  .status-robo.rodando .ponto { background: var(--acento); animation: pulsar 1.2s ease-in-out infinite; }
+  .status-robo.atrasado { background: #FFFBEB; border-color: #FCD34D; }
+  .status-robo.atrasado .ponto { background: #D97706; }
+  .status-robo.erro { background: var(--vermelho-suave); border-color: rgba(255, 0, 50, .3); }
+  .status-robo.erro .ponto { background: var(--vermelho); }
+  :root[data-theme="dark"] .status-robo.atrasado { background: #2E2510; border-color: #7A5A12; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .status-robo.atrasado { background: #2E2510; border-color: #7A5A12; } }
+  @keyframes pulsar { 50% { opacity: .35; } }
+  @media (max-width: 600px) { .status-robo .detalhe { margin-left: 0; width: 100%; } }
+
   .carregando-tela { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: var(--texto-3); }
 </style>
 </head>
@@ -171,6 +192,11 @@
           <p class="texto-2">Olá, <span id="saudacao"></span> Veja o que mudou no Radar.</p>
         </div>
         <span class="selo" id="f-papel"></span>
+      </div>
+
+      <div class="status-robo anima" style="--atraso:60ms" id="status-robo" role="status" aria-live="polite">
+        <span class="ponto" aria-hidden="true"></span>
+        <span>Verificando a última busca do robô</span>
       </div>
 
       <div class="busca busca-geral anima" style="--atraso:100ms">
@@ -449,6 +475,98 @@
 
   document.getElementById('carregando').classList.add('oculto');
   document.getElementById('tela').classList.remove('oculto');
+
+  // ---------- Status do robô de editais ----------
+  // Lê a tabela execucoes_robo e mostra se a busca semanal rodou.
+  // Agendamento: segunda às 07h17 de Brasília (10h17 UTC). Tolerância de 3 horas.
+  const StatusRobo = (() => {
+    const caixa = document.getElementById('status-robo');
+    const TOLERANCIA_H = 3;
+    let espera = null;
+
+    const fmt = iso => {
+      const d = new Date(iso);
+      const dia = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: '2-digit' });
+      const hora = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+      return `${dia} às ${hora}`;
+    };
+
+    // Última segunda 10h17 UTC que já passou
+    function ultimaEsperada(agora) {
+      const d = new Date(agora);
+      d.setUTCHours(10, 17, 0, 0);
+      d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+      if (d > agora) d.setUTCDate(d.getUTCDate() - 7);
+      return d;
+    }
+
+    function mostrar(estado, principal, detalhe, dica) {
+      caixa.className = 'status-robo ' + estado;
+      caixa.title = dica || '';
+      caixa.innerHTML = `<span class="ponto" aria-hidden="true"></span><span>${principal}</span>${detalhe ? `<span class="detalhe">${Radar.escapar(detalhe)}</span>` : ''}`;
+    }
+
+    async function atualizar() {
+      clearTimeout(espera);
+      const { data, error } = await Radar.sb
+        .from('execucoes_robo')
+        .select('iniciado_em, finalizado_em, status, origem, salvos, links_novos, candidatos, mensagem_erro')
+        .eq('robo', 'editais').eq('modo', 'normal')
+        .order('iniciado_em', { ascending: false })
+        .limit(10);
+      if (error) { console.error('[Radar] status do robô:', error); caixa.classList.add('oculto'); return; }
+
+      const agora = new Date();
+      const ultima = (data || [])[0];
+      const ultimaOk = (data || []).find(x => x.status === 'sucesso');
+      const esperada = ultimaEsperada(agora);
+      const atrasou = agora - esperada > TOLERANCIA_H * 3600e3 &&
+        !(data || []).some(x => new Date(x.iniciado_em) >= new Date(esperada - 24 * 3600e3) && x.status !== 'erro');
+      const esc = Radar.escapar;
+      const origem = x => x.origem === 'automatica' ? 'Execução automática' : 'Execução manual';
+      const resumoOk = ultimaOk ? `Última busca concluída: ${fmt(ultimaOk.finalizado_em || ultimaOk.iniciado_em)}` : 'Nenhuma busca concluída ainda';
+
+      if (!ultima) {
+        mostrar('', '<strong>Nenhuma busca registrada ainda.</strong> A próxima é segunda às 07h17.', '');
+        return;
+      }
+
+      // Rodando agora (ou travou: mais de 2 horas sem terminar)
+      if (ultima.status === 'rodando') {
+        if (agora - new Date(ultima.iniciado_em) < 2 * 3600e3) {
+          mostrar('rodando', `<strong>Buscando editais agora.</strong> Começou ${esc(fmt(ultima.iniciado_em))}.`, 'Leva alguns minutos', origem(ultima));
+          espera = setTimeout(atualizar, 60e3);
+          return;
+        }
+        mostrar('erro', `<strong>A busca de ${esc(fmt(ultima.iniciado_em))} não terminou.</strong> Avise a TI.`, resumoOk, 'O robô começou mas não registrou o fim.');
+        return;
+      }
+
+      if (ultima.status === 'erro') {
+        mostrar('erro', `<strong>A busca de ${esc(fmt(ultima.iniciado_em))} falhou.</strong> Avise a TI.`, resumoOk, ultima.mensagem_erro || '');
+        return;
+      }
+
+      if (atrasou) {
+        mostrar('atrasado', `<strong>A busca de segunda ainda não rodou.</strong> Os editais abaixo são da busca anterior.`, resumoOk, 'O robô deveria ter rodado segunda às 07h17. Avise a TI.');
+        return;
+      }
+
+      const n = ultima.salvos || 0;
+      const quando = esc(fmt(ultima.finalizado_em || ultima.iniciado_em));
+      const dica = `${origem(ultima)}. ${ultima.candidatos ?? 0} links analisados, ${ultima.links_novos ?? 0} nunca vistos antes.` +
+        (ultima.mensagem_erro ? ` Aviso: ${ultima.mensagem_erro}` : '');
+      const aviso = ultima.mensagem_erro ? ' (com avisos)' : '';
+      if (n > 0) {
+        mostrar('ok', `<strong>Busca concluída ${quando}:</strong> ${n} edita${n > 1 ? 'is novos' : 'l novo'}${aviso}.`, `Próxima: segunda às 07h17`, dica);
+      } else {
+        mostrar('sem-novos', `<strong>Busca concluída ${quando}:</strong> nenhum edital novo${aviso}.`, `Próxima: segunda às 07h17`, dica);
+      }
+    }
+
+    return { atualizar };
+  })();
+  StatusRobo.atualizar();
 
   // ---------- Editais ----------
   const esc = Radar.escapar;
