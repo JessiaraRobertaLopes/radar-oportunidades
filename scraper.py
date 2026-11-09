@@ -8,6 +8,7 @@ Fluxo:
   5. SALVAR      só editais abertos, de fluxo contínuo ou com situação indefinida
 """
 import hashlib
+import os
 import re
 from datetime import date
 from difflib import SequenceMatcher
@@ -149,6 +150,10 @@ def fonte_id(nome, url, tipo):
 # ---------------------------------------------------------------------
 # 1. DESCOBRIR
 # ---------------------------------------------------------------------
+# Falhas da rodada: se TODAS as buscas na web falharem (ex.: API sem crédito),
+# a execução é marcada como erro no painel, em vez de parecer "sem novidades".
+FALHAS = {"fontes": 0, "fontes_total": 0, "buscas": 0, "buscas_total": 0, "ultimo_erro": None}
+
 # Listas editáveis pelo Admin na tela "Configurações do robô".
 # Se o banco estiver vazio ou fora do ar, o robô usa as listas fixas acima.
 def fontes_ativas():
@@ -193,6 +198,7 @@ def descobrir_fontes_fixas():
     candidatos = []
     for f in fontes_ativas():
         print(f"Fonte fixa: {f['nome']}")
+        FALHAS["fontes_total"] += 1
         achados = 0
         try:
             r = c.baixar(f["url"])
@@ -210,6 +216,8 @@ def descobrir_fontes_fixas():
             registrar_fonte(f, total=achados)
         except Exception as e:
             print(f"  erro: {e}")
+            FALHAS["fontes"] += 1
+            FALHAS["ultimo_erro"] = f"{f['nome']}: {e}"
             registrar_fonte(f, erro=e)
     return candidatos
 
@@ -219,6 +227,7 @@ def descobrir_busca_web():
     hoje = date.today().strftime("%d/%m/%Y")
     for termo in termos_web_ativos():
         print(f"Busca web: {termo}")
+        FALHAS["buscas_total"] += 1
         try:
             resposta = c.perguntar(
                 c.MODELO_BUSCA,
@@ -237,6 +246,8 @@ def descobrir_busca_web():
                     })
         except Exception as ex:
             print(f"  erro: {ex}")
+            FALHAS["buscas"] += 1
+            FALHAS["ultimo_erro"] = f"Busca web: {ex}"
     return candidatos
 
 
@@ -320,7 +331,7 @@ def salvar(candidato, lido, chave):
 # ---------------------------------------------------------------------
 # Execução
 # ---------------------------------------------------------------------
-def main():
+def captar():
     print("=" * 60)
     print(f"RADAR DE OPORTUNIDADES v2 | {date.today().strftime('%d/%m/%Y')}")
     print(f"Limite de leituras nesta execução: {c.MAX_LEITURAS}")
@@ -378,6 +389,16 @@ def main():
           f"Encerrados descartados: {contagem['encerrados']} | Não eram edital: {contagem['nao_edital']} | Erros: {contagem['erros']}")
     print(c.resumo_custo())
     print("=" * 60)
+
+    return {
+        "candidatos": len(candidatos),
+        "links_novos": len(novos),
+        "salvos": contagem["salvos"],
+        "repetidos": contagem["repetidos"],
+        "encerrados": contagem["encerrados"],
+        "nao_edital": contagem["nao_edital"],
+        "erros_leitura": contagem["erros"],
+    }
 
 # ---------------------------------------------------------------------
 # RELEITURA: lê de novo os editais antigos (gravados antes do robô v2)
@@ -472,10 +493,35 @@ def releitura():
     print(c.resumo_custo())
     print("=" * 60)
 
+    return {
+        "salvos": 0,
+        "encerrados": contagem["encerrados"],
+        "nao_edital": contagem["nao_edital"],
+        "erros_leitura": contagem["erros"],
+    }
+
+
+# ---------------------------------------------------------------------
+# Execução com registro (selo "Última busca" no painel)
+# ---------------------------------------------------------------------
+def main():
+    modo = os.environ.get("MODO", "normal")
+    execucao_id = c.iniciar_execucao("editais", modo)
+    try:
+        numeros = releitura() if modo == "releitura" else captar()
+    except Exception as e:
+        c.finalizar_execucao(execucao_id, "erro", erro=e)
+        raise  # o GitHub também marca a execução em vermelho
+
+    status, aviso = "sucesso", None
+    if FALHAS["buscas_total"] and FALHAS["buscas"] == FALHAS["buscas_total"]:
+        status = "erro"
+        aviso = f"Todas as buscas na web falharam. {FALHAS['ultimo_erro']}"
+    elif FALHAS["buscas"] or FALHAS["fontes"]:
+        aviso = (f"{FALHAS['buscas']} de {FALHAS['buscas_total']} buscas e "
+                 f"{FALHAS['fontes']} de {FALHAS['fontes_total']} sites falharam. {FALHAS['ultimo_erro']}")
+    c.finalizar_execucao(execucao_id, status, numeros, erro=aviso)
+
 
 if __name__ == "__main__":
-    import os
-    if os.environ.get("MODO", "normal") == "releitura":
-        releitura()
-    else:
-        main()
+    main()
