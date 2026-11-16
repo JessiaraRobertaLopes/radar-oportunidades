@@ -478,10 +478,21 @@
 
   // ---------- Status do robô de editais ----------
   // Lê a tabela execucoes_robo e mostra se a busca semanal rodou.
-  // Agendamento: segunda às 07h17 de Brasília (10h17 UTC). Tolerância de 3 horas.
+  // Agendamento: segunda às 00h17 de Brasília (03h17 UTC). Tolerância de 7 horas:
+  // o GitHub costuma atrasar, então só avisa se até 07h17 a busca não tiver rodado.
+
+  // Última busca de editais concluída (usada no selo "Novo" e no link do aviso)
+  let ultimaBuscaOk = null;
+
   const StatusRobo = (() => {
     const caixa = document.getElementById('status-robo');
-    const TOLERANCIA_H = 3;
+    caixa.addEventListener('click', ev => {
+      if (!ev.target.closest('.link-novos')) return;
+      ev.preventDefault();
+      mostrarNovos();
+      document.getElementById('oportunidades').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    const TOLERANCIA_H = 7;
     let espera = null;
 
     const fmt = iso => {
@@ -491,10 +502,10 @@
       return `${dia} às ${hora}`;
     };
 
-    // Última segunda 10h17 UTC que já passou
+    // Última segunda 03h17 UTC que já passou
     function ultimaEsperada(agora) {
       const d = new Date(agora);
-      d.setUTCHours(10, 17, 0, 0);
+      d.setUTCHours(3, 17, 0, 0);
       d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
       if (d > agora) d.setUTCDate(d.getUTCDate() - 7);
       return d;
@@ -519,6 +530,8 @@
       const agora = new Date();
       const ultima = (data || [])[0];
       const ultimaOk = (data || []).find(x => x.status === 'sucesso');
+      ultimaBuscaOk = ultimaOk || null;
+      try { if (editais.length) renderizar(); } catch (_) { /* lista ainda carregando */ }
       const esperada = ultimaEsperada(agora);
       const atrasou = agora - esperada > TOLERANCIA_H * 3600e3 &&
         !(data || []).some(x => new Date(x.iniciado_em) >= new Date(esperada - 24 * 3600e3) && x.status !== 'erro');
@@ -527,7 +540,7 @@
       const resumoOk = ultimaOk ? `Última busca concluída: ${fmt(ultimaOk.finalizado_em || ultimaOk.iniciado_em)}` : 'Nenhuma busca concluída ainda';
 
       if (!ultima) {
-        mostrar('', '<strong>Nenhuma busca registrada ainda.</strong> A próxima é segunda às 07h17.', '');
+        mostrar('', '<strong>Nenhuma busca registrada ainda.</strong> A próxima é segunda às 00h17.', '');
         return;
       }
 
@@ -548,7 +561,7 @@
       }
 
       if (atrasou) {
-        mostrar('atrasado', `<strong>A busca de segunda ainda não rodou.</strong> Os editais abaixo são da busca anterior.`, resumoOk, 'O robô deveria ter rodado segunda às 07h17. Avise a TI.');
+        mostrar('atrasado', `<strong>A busca de segunda ainda não rodou.</strong> Os editais abaixo são da busca anterior.`, resumoOk, 'O robô deveria ter rodado segunda às 00h17. Avise a TI.');
         return;
       }
 
@@ -558,9 +571,9 @@
         (ultima.mensagem_erro ? ` Aviso: ${ultima.mensagem_erro}` : '');
       const aviso = ultima.mensagem_erro ? ' (com avisos)' : '';
       if (n > 0) {
-        mostrar('ok', `<strong>Busca concluída ${quando}:</strong> ${n} edita${n > 1 ? 'is novos' : 'l novo'}${aviso}.`, `Próxima: segunda às 07h17`, dica);
+        mostrar('ok', `<strong>Busca concluída ${quando}:</strong> <a href="#oportunidades" class="link-novos" title="Ver os editais desta busca">${n} edita${n > 1 ? 'is novos' : 'l novo'}</a>${aviso}.`, `Próxima: segunda às 00h17`, dica);
       } else {
-        mostrar('sem-novos', `<strong>Busca concluída ${quando}:</strong> nenhum edital novo${aviso}.`, `Próxima: segunda às 07h17`, dica);
+        mostrar('sem-novos', `<strong>Busca concluída ${quando}:</strong> nenhum edital novo${aviso}.`, `Próxima: segunda às 00h17`, dica);
       }
     }
 
@@ -586,6 +599,25 @@
     return { txt: new Date(e.prazo).toLocaleDateString('pt-BR', { timeZone: 'UTC' }), cls: '' };
   }
 
+  // Edital encontrado na última busca concluída
+  function ehNovo(e) {
+    if (!ultimaBuscaOk || !e.encontradoEm) return false;
+    const inicio = new Date(ultimaBuscaOk.iniciado_em).getTime() - 5 * 60e3;
+    return new Date(e.encontradoEm).getTime() >= inicio;
+  }
+
+  // Mostra só os editais da última busca, venham de qual aba vierem
+  function mostrarNovos() {
+    const novos = editais.filter(ehNovo).sort((a, b) => b.aderencia - a.aderencia);
+    abaAtual = 'novos';
+    campoBusca.value = '';
+    abas.forEach(t => t.setAttribute('aria-selected', 'false'));
+    const topo = `<p class="texto-2" style="margin:0 0 12px">Editais encontrados na última busca (${novos.length}). Clique em uma aba para voltar à lista completa.</p>`;
+    lista.innerHTML = novos.length
+      ? topo + `<div class="lista-editais cascata">${novos.map(cardEdital).join('')}</div>`
+      : estadoVazio('Nenhum edital novo', 'A última busca não trouxe editais novos.');
+  }
+
   function cardEdital(e) {
     const p = textoPrazo(e);
     const tags = e.areas.slice(0, 3).map(a => `<span class="selo selo-neutro">${esc(a)}</span>`).join('');
@@ -606,6 +638,7 @@
           ${tags ? `<div class="edital-tags">${tags}</div>` : ''}
         </div>
         <div class="edital-lateral">
+          ${ehNovo(e) ? '<span class="selo" title="Encontrado na última busca">Novo</span>' : ''}
           <span class="prazo ${p.cls}">${p.cls ? I.relogio : I.calendario}${esc(p.txt)}</span>
           ${status}
           ${conferir}
@@ -632,6 +665,7 @@
   }
 
   function renderizar() {
+    if (abaAtual === 'novos') { mostrarNovos(); return; }
     const visao = Editais.VISOES[abaAtual](editais);
     const filtrados = Editais.filtrarTexto(visao, campoBusca.value);
     if (!filtrados.length) {
@@ -650,7 +684,10 @@
       renderizar();
     });
   });
-  campoBusca.addEventListener('input', renderizar);
+  campoBusca.addEventListener('input', () => {
+    if (abaAtual === 'novos') { abaAtual = 'recentes'; abas.forEach(t => t.setAttribute('aria-selected', String(t.dataset.aba === 'recentes'))); }
+    renderizar();
+  });
 
   lista.addEventListener('click', ev => {
     const card = ev.target.closest('.edital');
