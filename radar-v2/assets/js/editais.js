@@ -114,7 +114,8 @@
   const VISOES = {
     'recentes': l => l.filter(pontual)
       .sort((a, b) => new Date(b.encontradoEm) - new Date(a.encontradoEm)),
-    'prioridade-a': l => l.filter(e => pontual(e) && e.prioridade === 'A')
+    // Prioridade A inclui fluxo contínuo: um edital A não pode ficar escondido só por não ter prazo
+    'prioridade-a': l => l.filter(e => ativo(e) && naoDescartado(e) && e.prioridade === 'A')
       .sort((a, b) => b.aderencia - a.aderencia),
     'prazo': l => l.filter(e => naoDescartado(e) && e.dias !== null && e.dias >= 0 && e.dias <= 7)
       .sort((a, b) => a.dias - b.dias),
